@@ -44,6 +44,7 @@ A successful initial product allows an agent to:
 - **[S]** Keep architectural relationships distinct from historical co-participation in a change. Being modified together does not imply an architectural dependency.
 - **[S]** Prefer selective retrieval and bounded agent responses to loading the whole model.
 - **[S]** The system must eventually be renderable for humans; use an existing renderer rather than inventing one without cause.
+- **[S]** Humans do not read, write, or annotate model source. The **only write path** to the model and ledger is the agent-facing tooling this project designs or adopts. Model files are machine-generated artifacts; rendered diagrams and query results are the human-facing surface. *(Settled 2026-10-25 after Phase A.)*
 - **[P]** Use a separate Git-backed **model-data repository**. Distribute runtime tooling independently from that repository and independently from the application's code repository.
 - **[P]** Use **LikeC4** as the baseline modeling, query, and rendering engine. Build a companion application/library and possibly an MCP facade; **do not initially fork LikeC4**.
 - **[P]** Use YAML or JSON files for change sets and evidence, validated with schemas; build indexes in memory or a disposable cache.
@@ -55,6 +56,7 @@ A successful initial product allows an agent to:
 - **[P]** No new graph database, RDF/OWL engine, bespoke visualization engine, or graph query language in the initial build.
 - **[P]** No mandatory automatic code indexing, code-to-diagram synchronization, or architectural drift detection in P0. Evidence and validation interfaces should leave room for those later.
 - **[P]** No full enterprise deployment-state engine or multi-user GUI in P0.
+- **[S]** No support for hand-editing model files, and no requirement to preserve comments or formatting in model source. *(Struck 2026-10-25: earlier drafts assumed hand-authored DSL.)*
 
 ## 3. Conceptual model and invariants
 
@@ -196,9 +198,9 @@ Evidence may be appended or amended in Git-tracked files; Git history must prese
 - **Candidate:** selected baseline plus an explicit set of change-set operations, subject to dependency, conflict, and schema validation; visually distinguish candidate additions/changes where feasible.
 - **Verified/released:** a future policy-defined projection based on the qualifying evidence and environment. **Do not claim this is automatically implementable by filtering node statuses.**
 
-**[O]** Decide promotion policy: when does an accepted/implemented change become part of the committed baseline, what actor may promote it, and how is that reconciled with later verification or deployment? Model source may be hand-edited or generated; avoid silent changes.
+**[O]** Decide promotion policy: when does an accepted/implemented change become part of the committed baseline, what actor may promote it, and how is that reconciled with later verification or deployment? Model source is generated only by the agent-facing tooling; avoid silent changes.
 
-**[O]** Verify LikeC4's support for update, deletion, movement, overlay removal, and source-preserving writes. Its documented workspace-to-DSL round-trip loses comments and formatting; do not use it as a blind formatter.
+**[S]** *(Resolved by Phase A, 2026-10-25.)* LikeC4's builder supports add and update; remove and move are done by editing parsed data and recomputing. Source-preserving writes are not needed because model source is never hand-authored. See `spikes/phase-a/FINDINGS.md`.
 
 ## 7. Historical query: `storyOf()`
 
@@ -310,7 +312,7 @@ The change-set file is authoritative for logical intent/associations; Git suppli
 
 Investigate these **before committing to a permanent storage or patching design**:
 
-1. **[O] LikeC4 feasibility:** Can its builder/model API implement add/update/move/delete, candidate overlays, and safe rendering for the required operations? Which calls are internal/unstable? Can we preserve hand-authored DSL formatting when committing changes?
+1. **[S] LikeC4 feasibility:** *(Resolved 2026-10-25, see `spikes/phase-a/FINDINGS.md`.)* Builder covers add/update; remove/move via parsed-data surgery plus `computeParsedModelData`; candidate rendering via disposable generated workspace. Formatting preservation struck as a non-requirement.
 2. **[O] Stable identity:** Metadata key vs external ID registry; treatment of relationships, renamed/moved entities, aliases, deleted elements, splits/merges.
 3. **[O] Baseline promotion:** Does the baseline represent accepted, implemented, or verified architecture? What is the review/verification gate? How do staging and production diverge?
 4. **[O] State machine:** Exact dispositions, realization stages, evidence standards, and who/what is authorized to assert them.

@@ -38,11 +38,13 @@
 
 ## 4. Writing back to DSL (spike 1, PRD 6.3 [O])
 
-- `likec4.toDSL()` and `generate()` from `likec4/generators/likec4` produce valid DSL but **drop all comments** and normalise formatting (confirmed: 5 comments in, 0 out). Treat as one-way generation, exactly as the docs warn.
-- **`likec4 format` (CLI) and `likec4.format()` (programmatic, returns a `Map<file, text>`) are source-preserving.** Comments survive; only alignment changes. This is the tool for tidying hand-authored files. It does not help with applying model edits.
+**Decision after this spike (2026-10-25):** humans do not read, write, or annotate model source. The only write path is the agent-facing tooling. The model files are therefore machine-generated, and the round-trip observations below are informational, not blockers.
+
+- `likec4.toDSL()` and `generate()` from `likec4/generators/likec4` produce valid DSL but **drop all comments** and normalise formatting (confirmed: 5 comments in, 0 out). Since nobody hand-authors the files, generated DSL can be the authoritative baseline. The spike's commented model files exist only to measure this.
+- `likec4 format` (CLI) and `likec4.format()` (programmatic, returns a `Map<file, text>`) are source-preserving. Not needed on the agent-only write path; noted for completeness.
 - **Generator defect:** a tag declared without a colour gets a default such as `tomato` in the spec data, and the generator writes `color tomato`, which the parser rejects ("Could not resolve reference to CustomColor"). Only theme colour names (`red`, `amber`, ...) or hex are valid. Workaround: declare explicit hex colours on tags in hand-authored specs, or post-process generated output.
 - **Generator pitfall:** generating from a **computed** model's `$data` silently emits views with no `include` rules, because computed views hold resolved nodes and edges instead of predicates. The result parses cleanly and renders a single empty container. Always generate from **parsed** data (`builder.build()`).
-- Implication for baseline promotion: we cannot patch hand-authored `.c4` files through LikeC4 without losing comments. Options for Phase C: (a) keep the authoritative baseline as generated DSL and forbid hand edits, (b) apply textual patches ourselves using Langium source positions (`docUri` and `sourcePath` are present on parsed records), or (c) keep hand-authored files and store candidate deltas separately, regenerating only projections. (c) is what this spike did and is the narrowest change.
+- Implication for baseline promotion: promotion is "apply operations to parsed data, regenerate DSL from parsed data, commit". Whether the committed baseline is stored as generated DSL or as LikeC4's parsed JSON is a Phase C choice; DSL keeps the LikeC4 toolchain (MCP, export, validate) usable without extra plumbing. Hand-editing is not supported, so textual patching and comment preservation are out of scope.
 
 ## 5. Rendering (AR-14, AT-10)
 
@@ -63,7 +65,7 @@
 
 1. **Relationship identity (5.1, 5.4 [O]):** decided by evidence. Carry an explicit `stable_id` in relationship metadata. LikeC4's hash is positional for parallel edges.
 2. **Hierarchy rule:** relationships cannot cross an ancestor/descendant boundary. Change-set validation must reject these before LikeC4 does, with a clearer message, and the PRD example should be corrected.
-3. **Baseline writes (6.3 [O], 9 [P]):** source-preserving model edits through LikeC4 are not available. Phase B can proceed with hand-authored baseline plus separate change-set files, and projections regenerated on demand. Decide the promotion mechanism in Phase C with option (c) above as the default.
+3. **Baseline writes (6.3 [O], 9 [P]):** model source is agent-written only, so the lossy round-trip is not a constraint. The baseline is generated DSL; promotion regenerates it from parsed data. Struck from the PRD: hand-edited model source, source-preserving writes, and formatting preservation.
 4. **Shared mutable model:** facade design constraint, not a PRD change. Record it in the Phase B design.
 5. **Docs drift:** `computedModel()` async, `generate` export name, generator colour bug. Pin `likec4` to an exact version and keep these probes as regression checks.
 
