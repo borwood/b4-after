@@ -178,10 +178,28 @@ Tag colours: LikeC4 assigns palette names to tags declared without a colour, and
 writes them back in a form its parser rejects. `generateDSL` normalises these to hex, so every
 regeneration path (promotion, adoption, rendering) is safe.
 
+## Releases
+
+A release is a claim about an environment at a time, so it is derived from deployment evidence
+rather than from node statuses. `releaseTimeline(ledger, { environment? })` lists deployment
+records oldest first; each names the model-data revision it speaks for (the record's
+`baseline_revision`, else the change set's promotion commit). `releasedBaseline(repoDir,
+{ environment, at? })` returns the latest passing deployment at or before `at`, the committed
+model at that revision, the change sets whose latest attempt passed, and those whose latest attempt
+failed. Deployments of unpromoted change sets are listed and flagged; they cannot form a baseline.
+
+## History and lineage
+
+`storyOf` with `subtree: true` uses current descendants at the snapshot; `membership: 'ever'` also
+includes every entity a promoted change set ever added or moved under the subtree, plus
+relationships it added to them, closed transitively (ledger-derived, so pre-ledger moves are not
+seen). `add_element.derived_from` and `remove_element.succeeded_by` record splits, merges and
+replacements as lineage: history only, surfaced one hop in stories, never an architectural edge.
+
 ## Not yet
 
-Historical subtree membership modes and release/deployment projections beyond listing deployment
-evidence.
+Drift checks against code and deployment (AR-19). The intended shape is a producer of
+`runtime_observation` evidence, not a new engine; build the first one against a concrete signal.
 
 ## Development
 

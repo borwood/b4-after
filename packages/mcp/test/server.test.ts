@@ -48,10 +48,10 @@ beforeAll(async () => {
 afterAll(async () => { await client.close(); await rm(dir, { recursive: true, force: true }) })
 
 describe('surface', () => {
-  it('exposes 16 tools with a small token footprint, and help on demand', async () => {
+  it('exposes 17 tools with a small token footprint, and help on demand', async () => {
     const tools = (await client.listTools()).tools
     expect(tools.map(t => t.name).sort()).toEqual([
-      'bootstrap', 'change', 'changes', 'element', 'expand', 'help', 'overview', 'project', 'promote', 'propose', 'qualify', 'record_evidence', 'search', 'set_disposition', 'story', 'validate',
+      'bootstrap', 'change', 'changes', 'element', 'expand', 'help', 'overview', 'project', 'promote', 'propose', 'qualify', 'record_evidence', 'releases', 'search', 'set_disposition', 'story', 'validate',
     ])
     const bytes = JSON.stringify(tools).length
     expect(bytes).toBeLessThan(14_000) // roughly 3.5k tokens for the whole tool list
@@ -205,6 +205,20 @@ describe('writes and concurrency', () => {
 
     const story = await call(client, 'story', { entity: 'ent-alpha', environment: 'staging' })
     expect(story.json.entries[0].state).toBe('accepted/not_started/verified@staging/promoted')
+
+    // Releases: a deployment of the promoted change set gives staging a released baseline.
+    const none = await call(client, 'releases', { environment: 'staging', detail: 'baseline' })
+    expect(none.json.revision).toBeNull()
+    await call(client, 'record_evidence', { change_id: 'CHG-101', actor: 'cd', evidence: {
+      id: 'ev-101-deploy', kind: 'deployment', result: 'pass', environment: 'staging', source_ref: 'https://cd/1', observed_at: '2026-05-02T00:00:00Z', recorded_by: 'cd',
+    } })
+    const tl = await call(client, 'releases', {})
+    expect(tl.json.events).toHaveLength(1)
+    expect(tl.json.events[0]).toMatchObject({ change: 'CHG-101', env: 'staging', result: 'pass', baseline: prom.json.head })
+    const rel = await call(client, 'releases', { environment: 'staging', detail: 'baseline' })
+    expect(rel.json).toMatchObject({ revision: prom.json.head, deployed: ['CHG-101'], failed: [] })
+    expect(rel.json.model.elements).toBe(8)
+    expect((await call(client, 'releases', { detail: 'baseline' })).json.code).toBe('VALIDATION')
   })
 
   it('bootstrap init on an empty directory, then adopt is a no-op there', async () => {

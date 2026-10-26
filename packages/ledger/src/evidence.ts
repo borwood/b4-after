@@ -37,6 +37,8 @@ export const EvidenceRecord = z.strictObject({
   source_ref: z.string().min(1),
   /** Code revision the observation was made against. Required for an observation to count toward verification. */
   code_revision: z.string().min(4).optional(),
+  /** Model-data repository commit whose baseline this record speaks for. Deployments use it to say which declared architecture is running. */
+  baseline_revision: z.string().regex(/^[0-9a-f]{7,40}$/).optional(),
   environment: z.string().min(1).optional(),
   observed_at: z.iso.datetime({ offset: true }),
   recorded_by: z.string().min(1),

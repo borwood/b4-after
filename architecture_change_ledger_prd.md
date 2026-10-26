@@ -166,6 +166,7 @@ references:
 - **[S]** Component histories must survive rename/move/removal.
 - **[P]** Assign stable, non-hierarchical entity IDs, then resolve them to current LikeC4 fully qualified names (FQNs). The mapping may be stored in element metadata or a separate registry.
 - **[O]** Decide relationship-ID scheme and how to model splits, merges, and replacement identity.
+- **[P]** *(2026-10-26.)* Relationship ids: explicit `stable_id` metadata (Phase A). Splits, merges, replacements: `derived_from` on `add_element` and `succeeded_by` on `remove_element`, recorded in the ledger as lineage, shown one hop in `storyOf`, never turned into architectural relationships.
 
 ## 6. State, evidence, and model projections
 
@@ -200,7 +201,7 @@ Evidence may be appended or amended in Git-tracked files; Git history must prese
 
 - **Baseline:** committed LikeC4 model at a selected model-repository Git revision; its accuracy remains evidence-qualified.
 - **Candidate:** selected baseline plus an explicit set of change-set operations, subject to dependency, conflict, and schema validation; visually distinguish candidate additions/changes where feasible.
-- **Verified/released:** a future policy-defined projection based on the qualifying evidence and environment. **Do not claim this is automatically implementable by filtering node statuses.** *(Phase D delivers `qualifyBaseline`: the committed model annotated per entity with the derived status of the promoted change set that last operated on it, by environment and revision. It annotates; it does not filter. A release projection beyond listing deployment evidence remains open.)*
+- **Verified/released:** a future policy-defined projection based on the qualifying evidence and environment. **Do not claim this is automatically implementable by filtering node statuses.** *(Phase D delivers `qualifyBaseline`: the committed model annotated per entity with the derived status of the promoted change set that last operated on it, by environment and revision. It annotates; it does not filter. Released view, 2026-10-26: `releasedBaseline(environment, at)` is the committed model at the revision named by the latest passing deployment record, with deployed and failed change sets listed. Deployment records may carry `baseline_revision`; otherwise the change set's promotion commit is used. A release is thus a dated, evidence-backed claim about an environment, never a filter on statuses.)*
 
 **[O]** Decide promotion policy: when does an accepted/implemented change become part of the committed baseline, what actor may promote it, and how is that reconciled with later verification or deployment? Model source is generated only by the agent-facing tooling; avoid silent changes.
 
@@ -229,6 +230,8 @@ No recursive expansion into the histories of the other participants by default. 
 **[S]** Support queries bounded by a time or revision, not only the latest state. **[P]** Default chronology is the model-ledger repository's *recorded history* (Git commit/time), and a query at Git revision R reconstructs associations and statuses as recorded at R. Explicitly distinguish an event's claimed effective time from the commit that recorded it if those differ.
 
 **[O]** For a moved/deleted subgraph, define membership semantics: current descendants, descendants as of a historical revision, or anyone ever under it. MVP may use current members by default, but must state the choice to the caller.
+
+**[P]** *(2026-10-26.)* All three exist. Default is current descendants at the snapshot; passing a revision resolves descendants at that revision; `membership: ever` adds everything a promoted change set ever added or moved under the subtree (and relationships it added to them), derived from the ledger. The response states which was used. Pre-ledger moves are invisible to `ever`, by construction.
 
 ### 7.3 Computation
 
@@ -327,7 +330,7 @@ Investigate these **before committing to a permanent storage or patching design*
 6. **[O] Historical semantics:** Git revision/time vs effective time; subtree membership at historical revisions; handling commits that revise a single change set.
 7. **[O] Schema validation:** Appropriate rule format for entity kinds, required properties, allowed relationship endpoint kinds, and cross-record integrity.
 8. **[O] Agent surface:** One companion MCP facade vs existing LikeC4 MCP plus a separate ledger MCP; scope, connection/setup friction, and default response budgets.
-9. **[O] Adoption:** Minimal import/bootstrapping procedure for existing production codebases, including distinguishing inferred/unverified architecture from verified knowledge.
+9. **[P] Adoption:** *(2026-10-26.)* `initModelRepo` plus agent-authored inferred change sets, or `adoptExistingModel` for an existing LikeC4 model. Imported knowledge carries `inferred: true`, is promoted with a `pre-ledger` marker and no evidence, and therefore renders as unverified until evidence arrives. Procedure in `skills/like-b4-adopt`.
 
 ## 12. Suggested implementation sequence
 

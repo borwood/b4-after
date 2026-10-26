@@ -6,6 +6,7 @@ import { z } from 'zod'
 import {
   storyOf, validateChangeSet, proposeChangeSet, setDisposition, promoteChangeSet, recordEvidence,
   projectModel, renderProjection, qualifyBaseline, deriveVerification, initModelRepo, adoptExistingModel,
+  releaseTimeline, releasedBaseline,
   overview, search, expand, elementDetail, resolveElement,
   Ledger, ProjectionError, ProposalRejected, PromotionRefused, LedgerError, EvidenceError,
   type StoryResult, type ValidationIssue,
@@ -247,6 +248,28 @@ export function createServer(ctx: RepoContext): McpServer {
     if (a.render === 'dsl') { const r = await renderProjection(q, { format: 'dsl' }); if (r.format === 'dsl') base.dsl = r.dsl }
     if (a.render === 'png') { const r = await renderProjection(q, { format: 'png', outDir: a.out_dir, views: a.views }); if (r.format === 'png') base.png = { dir: r.outDir, files: r.files } }
     return ok(q.baseline.revision, base)
+  }))
+
+  server.registerTool('releases', {
+    description: 'Deployment timeline per environment, and the released baseline (model at the latest passing deployment)',
+    inputSchema: { environment: z.string().optional(), at: z.string().optional(), detail: z.enum(['timeline', 'baseline']).optional() },
+  }, async (a) => guarded(async () => {
+    const s = await ctx.snapshot()
+    const timeline = releaseTimeline(s.ledger, { environment: a.environment }).map(e => ({
+      change: e.changeId, evidence: e.evidenceId, env: e.environment, result: e.result, at: e.observedAt,
+      code: e.codeRevision, baseline: short(e.baselineRevision), promoted: e.promoted,
+    }))
+    if (a.detail !== 'baseline') return ok(s.head, { environment: a.environment ?? 'all', events: timeline.slice(-50), truncated: timeline.length > 50 })
+    if (!a.environment) return fail('VALIDATION', 'environment is required for detail=baseline')
+    const r = await releasedBaseline(ctx.repoDir, { environment: a.environment, at: a.at, ledger: s.ledger })
+    const summary = r.model && r.registry
+      ? { elements: [...r.model.elements()].length, relationships: [...r.model.relationships()].length, roots: [...r.model.roots()].map(e => r.registry!.elementByFqn(e.id)?.stableId ?? `fqn:${e.id}`) }
+      : null
+    return ok(s.head, {
+      environment: r.environment, at: r.at, revision: short(r.revision),
+      deployment: r.deployment ? { change: r.deployment.changeId, evidence: r.deployment.evidenceId, at: r.deployment.observedAt, baseline_source: r.deployment.baselineSource } : null,
+      deployed: r.deployedChangeSets, failed: r.failedChangeSets, model: summary, ...(r.warnings.length ? { warnings: r.warnings } : {}),
+    })
   }))
 
   server.registerTool('bootstrap', {

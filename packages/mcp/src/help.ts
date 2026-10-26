@@ -56,7 +56,8 @@ add_relationship makes from/to participants of the change set (for story) withou
 
   evidence: `Evidence record: { id: "ev-<slug>", kind: test|runtime_observation|deployment|code_review|manual_review, result: pass|fail|inconclusive,
   targets?: [<stable ids the change set operates on>] (none = whole change set), source_ref (url/key of the run, PR, trace),
-  code_revision? (required for an observation to count), environment?, observed_at (ISO), recorded_by, notes?, amends?: "ev-.." }
+  code_revision? (required for an observation to count), baseline_revision? (model-data commit a deployment ran; else the promotion commit is used), environment?, observed_at (ISO), recorded_by, notes?, amends?: "ev-.." }
+Deployments (kind=deployment, environment=<env>, result pass|fail) feed the releases tool; record one per deploy attempt.
 Derivation (never asserted): only observations (test, runtime_observation) with code_revision verify. Approvals (code_review, manual_review) and deployments are listed but never verify on their own.
 verified = every operation target covered by a passing observation; partial = some passing, not all covered; failed = any applicable failing observation; unverified = none.
 environment=<name> restricts to that environment plus environment-agnostic records. Corrections: new record with amends=<old id>; the old one stays on file.`,
@@ -83,7 +84,8 @@ story(entity, subtree?, membership=current|ever, revision?, before?, environment
 Lineage: add_element may carry derived_from=[ids] and remove_element succeeded_by=[ids] (splits, merges, replacements). Story shows these as roles derived_from / succeeded_by via lineage; they are history only, never architectural edges.
 changes(disposition?, promoted?, entity?, limit?): list change sets. change(change_id, revision?, include_evidence?): one change set with commits and derived verification.
 project(changes, baseline_revision?, highlight?, render=none|dsl|png, out_dir?): candidate diff; png writes files and returns paths.
-qualify(environment?, revision?, render?, detail=counts|full): committed baseline annotated per entity with derived verification.`,
+qualify(environment?, revision?, render?, detail=counts|full): committed baseline annotated per entity with derived verification.
+releases(environment?, at?, detail=timeline|baseline): deployment evidence as a timeline; detail=baseline gives the released baseline for an environment at a time (model at the revision of the latest passing deployment; deployed/failed change sets).`,
 
   policy: `Promotion (default): disposition accepted; all depends_on promoted; committed and clean tree. Implementation status does not gate promotion: the baseline is accepted declared architecture, not proof it is built or correct.
 Verification (default): observations need code_revision; approvals never verify alone; status is environment-qualified. Stricter policies (required kinds, required approval) exist in the library; the server uses defaults.`,

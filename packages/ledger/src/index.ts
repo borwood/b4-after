@@ -23,6 +23,7 @@ export {
 } from './evidence.js'
 export { qualifyBaseline, QUALIFICATION_TAGS, type QualifiedBaseline, type EntityQualification, type QualificationStatus, type QualifyOptions } from './qualify.js'
 export { formatStory, formatEntry, formatQualification } from './format.js'
+export { releaseTimeline, releasedBaseline, promotionCommitOf, type ReleaseEvent, type ReleasedBaseline, type ReleasedBaselineOptions, type TimelineOptions } from './releases.js'
 export { initModelRepo, adoptExistingModel, slug, DEFAULT_KINDS, DEFAULT_RELATIONSHIP_KINDS, type InitOptions, type InitResult, type AdoptOptions, type AdoptResult } from './bootstrap.js'
 export {
   overview, search, expand, elementDetail, resolveElement, elementRow, relationshipRow,
