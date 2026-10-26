@@ -1,0 +1,43 @@
+// Billing domain. Hand-authored baseline.
+model {
+  customer = actor 'Customer' {
+    description 'Pays invoices'
+  }
+
+  billing = system 'Billing Platform' {
+    metadata {
+      stable_id 'ent-billing'      // stable, non-hierarchical identity (PRD 5.4 [P])
+      owner     'payments-team'
+    }
+
+    invoice_ui = container 'Invoice UI' {
+      technology 'React'
+      metadata { stable_id 'ent-invoice-ui' }
+    }
+
+    billing_api = container 'Billing API' {
+      technology 'Node.js'
+      metadata { stable_id 'ent-billing-api' }
+
+      charges = component 'Charges Handler' {
+        metadata { stable_id 'ent-charges' }
+      }
+    }
+
+    ledger_db = datastore 'Ledger DB' {
+      technology 'PostgreSQL'
+      metadata { stable_id 'ent-ledger-db' }
+    }
+
+    invoice_ui -[uses]-> billing_api 'calls'
+    billing_api.charges -[writes_to]-> ledger_db 'persists charges'
+  }
+
+  payment_gateway = system 'Payment Gateway' {
+    #external
+    metadata { stable_id 'ent-payment-gateway' }
+  }
+
+  customer -[uses]-> billing.invoice_ui 'views invoices'
+  billing.billing_api.charges -[uses]-> payment_gateway 'charges cards'
+}

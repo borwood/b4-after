@@ -1,0 +1,17 @@
+{
+  "name": "phase-a-likec4-spike",
+  "private": true,
+  "type": "module",
+  "description": "Phase A feasibility spike: can LikeC4's model API support candidate overlays, round-trip, and rendering?",
+  "scripts": {
+    "introspect": "node scripts/00-introspect.mjs",
+    "load": "node scripts/01-load-and-query.mjs",
+    "candidate": "node scripts/02-candidate-overlay.mjs",
+    "roundtrip": "node scripts/03-roundtrip.mjs",
+    "render": "node scripts/04-render.mjs",
+    "mcp": "node scripts/05-mcp-footprint.mjs"
+  },
+  "devDependencies": {
+    "likec4": "1.60.0"
+  }
+}
