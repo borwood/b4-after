@@ -6,12 +6,10 @@ import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Projection } from './projection.js'
-import type { ParsedModelData } from './model.js'
+import { generateDSL, type ParsedModelData } from './model.js'
 
 export async function projectionToDSL(data: ParsedModelData): Promise<string> {
-  const { generate } = await import('likec4/generators/likec4')
-  // The generator must receive PARSED data (views with rules). Computed data yields empty views (Phase A).
-  return generate(data as any)
+  return generateDSL(data)
 }
 
 export interface MaterializedWorkspace { dir: string; file: string; dispose(): Promise<void> }

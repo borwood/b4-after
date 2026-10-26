@@ -48,10 +48,10 @@ beforeAll(async () => {
 afterAll(async () => { await client.close(); await rm(dir, { recursive: true, force: true }) })
 
 describe('surface', () => {
-  it('exposes 15 tools with a small token footprint, and help on demand', async () => {
+  it('exposes 16 tools with a small token footprint, and help on demand', async () => {
     const tools = (await client.listTools()).tools
     expect(tools.map(t => t.name).sort()).toEqual([
-      'change', 'changes', 'element', 'expand', 'help', 'overview', 'project', 'promote', 'propose', 'qualify', 'record_evidence', 'search', 'set_disposition', 'story', 'validate',
+      'bootstrap', 'change', 'changes', 'element', 'expand', 'help', 'overview', 'project', 'promote', 'propose', 'qualify', 'record_evidence', 'search', 'set_disposition', 'story', 'validate',
     ])
     const bytes = JSON.stringify(tools).length
     expect(bytes).toBeLessThan(14_000) // roughly 3.5k tokens for the whole tool list
@@ -205,6 +205,43 @@ describe('writes and concurrency', () => {
 
     const story = await call(client, 'story', { entity: 'ent-alpha', environment: 'staging' })
     expect(story.json.entries[0].state).toBe('accepted/not_started/verified@staging/promoted')
+  })
+
+  it('bootstrap init on an empty directory, then adopt is a no-op there', async () => {
+    const fresh = await mkdtemp(join(tmpdir(), 'like-b4-mcp-init-'))
+    try {
+      const c = new RepoContext(fresh, { actor: 'adopter' })
+      const server = createServer(c)
+      const [ct, st] = InMemoryTransport.createLinkedPair()
+      await server.connect(st)
+      const cl = new Client({ name: 't', version: '0' }); await cl.connect(ct)
+      const noName = await call(cl, 'bootstrap', { mode: 'init' })
+      expect(noName.json.code).toBe('VALIDATION')
+      const init = await call(cl, 'bootstrap', { mode: 'init', name: 'Shop', tags: ['external'] })
+      expect(init.json).toMatchObject({ ok: true, mode: 'init' })
+      expect(init.json.next).toMatch(/inferred/)
+      const ov = await call(cl, 'overview')
+      expect(ov.json.model.elements).toBe(0)
+      expect(ov.json.model.tags).toEqual(['external'])
+      const adopt = await call(cl, 'bootstrap', { mode: 'adopt' })
+      expect(adopt.json).toMatchObject({ ok: true, mode: 'adopt', change_sets: [] })
+      const prop = await call(cl, 'propose', { change_set: {
+        id: 'CHG-1', title: 'Inferred baseline: shop', intent: 'from README', inferred: true, implementation: 'implemented',
+        operations: [{ op: 'add_element', id: 'ent-shop', parent: null, name: 'shop', kind: 'system', title: 'Shop' }],
+      } })
+      expect(prop.json.ok).toBe(true)
+      await call(cl, 'set_disposition', { change_id: 'CHG-1', to: 'accepted' })
+      const prom = await call(cl, 'promote', { change_id: 'CHG-1' })
+      expect(prom.json.added).toEqual(['ent-shop'])
+      const q = await call(cl, 'qualify', { detail: 'full' })
+      expect(q.json.counts).toMatchObject({ unverified: 1, unrecorded: 0 })
+      expect(q.json.entities[0].reason).toMatch(/inferred during adoption/)
+      const adoptHelp = await call(cl, 'help', { topic: 'adopt' })
+      expect(adoptHelp.text).toMatch(/Two paths/)
+      await cl.close()
+    } finally {
+      await rm(fresh, { recursive: true, force: true })
+    }
   })
 
   it('snapshot cache follows out-of-band changes to the repository', async () => {

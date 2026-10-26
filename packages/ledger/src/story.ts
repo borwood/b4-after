@@ -32,6 +32,8 @@ export interface StoryEntry {
   /** Derived from evidence on file at the snapshot; never asserted (PRD 6.1). */
   verification: { status: VerificationStatus; environment: string; basis: string[]; failing: string[]; uncovered: string[] }
   promoted: boolean
+  /** Recorded during adoption from an existing system, not designed through the ledger. */
+  inferred: boolean
   /** Committer date of the first commit recording this change set, as visible at the snapshot. */
   recordedAt: string | null
   lastRecordedAt: string | null
@@ -189,6 +191,7 @@ function toEntry(r: ChangeRecord, members: Set<string>, include: Set<StoryInclud
     implementation: cs.implementation,
     verification: { status: v.status, environment: v.environment, basis: v.basis, failing: v.failing, uncovered: v.uncovered },
     promoted: !!cs.promotion,
+    inferred: !!cs.inferred,
     recordedAt: r.firstRecordedAt,
     lastRecordedAt: r.lastRecordedAt,
     ...(cs.effective_at ? { effectiveAt: cs.effective_at } : {}),

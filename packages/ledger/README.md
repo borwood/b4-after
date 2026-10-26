@@ -165,10 +165,23 @@ at any revision.
 
 **formatStory / formatQualification** render compact Markdown summaries for agents and humans.
 
+## Adoption
+
+`initModelRepo(dir, { name, actor, kinds?, relationshipKinds?, tags? })` creates an empty,
+valid model-data repository. `adoptExistingModel(dir, { actor })` takes an existing LikeC4 model,
+assigns missing stable ids (regenerating `model/model.c4`), and records one inferred,
+pre-ledger-promoted change set per root plus one for cross-root relationships; it is idempotent.
+Change sets carry `inferred: true` so stories and the qualified baseline say where knowledge came
+from. See `skills/like-b4-adopt` for the agent procedure.
+
+Tag colours: LikeC4 assigns palette names to tags declared without a colour, and its generator
+writes them back in a form its parser rejects. `generateDSL` normalises these to hex, so every
+regeneration path (promotion, adoption, rendering) is safe.
+
 ## Not yet
 
-Historical subtree membership modes, release/deployment projections beyond listing deployment
-evidence, and the agent-facing MCP facade.
+Historical subtree membership modes and release/deployment projections beyond listing deployment
+evidence.
 
 ## Development
 

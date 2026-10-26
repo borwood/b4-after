@@ -1,7 +1,7 @@
 export * from './schema.js'
 export { Git, GitError, parseTrailers, toUtcIso, type Commit } from './git.js'
 export { IdentityRegistry, STABLE_ID_KEY, type EntityRecord, type ElementRecord, type RelationshipRecord, type IdentityProblem } from './identity.js'
-export { loadModel, modelFromParsedData, roundTripCheck, MODEL_DIR, type LoadedModel, type LoadModelOptions, type ParsedModelData } from './model.js'
+export { loadModel, modelFromParsedData, roundTripCheck, generateDSL, sanitizeForGeneration, MODEL_DIR, type LoadedModel, type LoadModelOptions, type ParsedModelData } from './model.js'
 export {
   Ledger, LedgerError, CHANGES_DIR, changeSetPath, parseChangeSet, serializeChangeSet, participantsOf, compareRecorded,
   type ChangeRecord, type Participation, type ParticipationRole, type LedgerSnapshot, type LedgerProblem, type LoadLedgerOptions,
@@ -23,6 +23,7 @@ export {
 } from './evidence.js'
 export { qualifyBaseline, QUALIFICATION_TAGS, type QualifiedBaseline, type EntityQualification, type QualificationStatus, type QualifyOptions } from './qualify.js'
 export { formatStory, formatEntry, formatQualification } from './format.js'
+export { initModelRepo, adoptExistingModel, slug, DEFAULT_KINDS, DEFAULT_RELATIONSHIP_KINDS, type InitOptions, type InitResult, type AdoptOptions, type AdoptResult } from './bootstrap.js'
 export {
   overview, search, expand, elementDetail, resolveElement, elementRow, relationshipRow,
   type Snapshot, type Overview, type SearchOptions, type SearchResult, type ExpandOptions, type ExpandResult, type ElementDetail, type ElementRow, type RelationshipRow,

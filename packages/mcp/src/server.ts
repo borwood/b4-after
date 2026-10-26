@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import {
   storyOf, validateChangeSet, proposeChangeSet, setDisposition, promoteChangeSet, recordEvidence,
-  projectModel, renderProjection, qualifyBaseline, deriveVerification,
+  projectModel, renderProjection, qualifyBaseline, deriveVerification, initModelRepo, adoptExistingModel,
   overview, search, expand, elementDetail, resolveElement,
   Ledger, ProjectionError, ProposalRejected, PromotionRefused, LedgerError, EvidenceError,
   type StoryResult, type ValidationIssue,
@@ -247,6 +247,23 @@ export function createServer(ctx: RepoContext): McpServer {
     if (a.render === 'png') { const r = await renderProjection(q, { format: 'png', outDir: a.out_dir, views: a.views }); if (r.format === 'png') base.png = { dir: r.outDir, files: r.files } }
     return ok(q.baseline.revision, base)
   }))
+
+  server.registerTool('bootstrap', {
+    description: 'Adopt a system: init an empty model repo, or adopt an existing LikeC4 model as inferred baseline (help adopt)',
+    inputSchema: {
+      mode: z.enum(['init', 'adopt']), actor: z.string().optional(),
+      name: z.string().optional(), kinds: z.array(z.string()).optional(), relationship_kinds: z.array(z.string()).optional(), tags: z.array(z.string()).optional(),
+    },
+  }, async (a) => guarded(() => ctx.withWriteLock(async () => {
+    const actor = needActor(a.actor)
+    if (a.mode === 'init') {
+      if (!a.name) return fail('VALIDATION', 'name is required for init')
+      const r = await initModelRepo(ctx.repoDir, { name: a.name, actor, kinds: a.kinds, relationshipKinds: a.relationship_kinds, tags: a.tags })
+      return ok(r.sha, { mode: 'init', files: r.files, next: 'propose inferred change sets (inferred: true, implementation: implemented), accept, promote; see help adopt' })
+    }
+    const r = await adoptExistingModel(ctx.repoDir, { actor })
+    return ok(r.sha, { mode: 'adopt', assigned_ids: r.assignedIds, change_sets: r.changeSets, skipped: r.skipped })
+  })))
 
   return server
 }

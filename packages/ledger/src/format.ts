@@ -23,7 +23,7 @@ export function formatStory(story: StoryResult): string {
 
 export function formatEntry(e: StoryEntry): string {
   const when = e.recordedAt ? e.recordedAt.slice(0, 10) : 'uncommitted'
-  const state = [e.disposition, e.implementation, `${e.verification.status}${e.verification.environment !== 'any' ? `@${e.verification.environment}` : ''}`, e.promoted ? 'promoted' : null].filter(Boolean).join(' / ')
+  const state = [e.disposition, e.implementation, `${e.verification.status}${e.verification.environment !== 'any' ? `@${e.verification.environment}` : ''}`, e.promoted ? 'promoted' : null, e.inferred ? 'inferred' : null].filter(Boolean).join(' / ')
   const matched = e.matched.map(m => `${m.entityId}:${m.role}`).join(', ')
   const others = e.others.map(o => `${o.entityId}:${o.role}`).join(', ')
   const out = [`- **${e.changeId}** ${e.title} — ${when} — ${state}`]

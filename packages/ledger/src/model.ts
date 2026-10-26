@@ -79,10 +79,33 @@ export async function modelFromParsedData(data: ParsedModelData): Promise<LikeC4
   return LikeC4Model.create(computeParsedModelData(structuredClone(data) as any)) as unknown as LikeC4Model
 }
 
+/** Theme colour names the DSL accepts verbatim. */
+const THEME_COLORS = new Set(['amber', 'blue', 'gray', 'slate', 'green', 'indigo', 'muted', 'primary', 'red', 'secondary', 'sky'])
+/** Radix palette names LikeC4 assigns to tags declared without a colour; the generator emits them but the parser rejects them (Phase A finding). */
+const RADIX_HEX: Record<string, string> = {
+  tomato: '#E54D2E', grass: '#46A758', ruby: '#E54666', orange: '#F76B15', pink: '#D6409F', teal: '#12A594',
+  purple: '#8E4EC6', crimson: '#E93D82', lime: '#BDEE63', yellow: '#FFE629', violet: '#6E56CF',
+}
+
+/** Make parsed data safe for the DSL generator. Returns a copy. */
+export function sanitizeForGeneration(data: ParsedModelData): ParsedModelData {
+  const out = structuredClone(data) as ParsedModelData
+  for (const tag of Object.values<any>(out.specification?.tags ?? {})) {
+    const c = tag?.color
+    if (typeof c === 'string' && !c.startsWith('#') && !THEME_COLORS.has(c)) tag.color = RADIX_HEX[c] ?? '#64748b'
+  }
+  return out
+}
+
+/** Generate DSL from parsed data (never from computed data: computed views carry nodes, not rules). */
+export async function generateDSL(data: ParsedModelData): Promise<string> {
+  const { generate } = await import('likec4/generators/likec4')
+  return generate(sanitizeForGeneration(data) as any)
+}
+
 /** Validate parsed data by generating DSL and loading it with the real LikeC4 parser. Returns the DSL. */
 export async function roundTripCheck(data: ParsedModelData): Promise<{ dsl: string; errors: string[] }> {
-  const { generate } = await import('likec4/generators/likec4')
-  const dsl = generate(data as any)
+  const dsl = await generateDSL(data)
   const tmp = await mkdtemp(join(tmpdir(), 'like-b4-check-'))
   try {
     await writeFile(join(tmp, 'model.c4'), dsl, 'utf8')

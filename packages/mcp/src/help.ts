@@ -1,7 +1,7 @@
 // On-demand documentation. Tool descriptions stay one line; anything an agent might need to
 // follow up on lives here, by topic, so it costs tokens only when asked for.
 
-export const HELP_TOPICS = ['start', 'ids', 'schema', 'operations', 'evidence', 'workflow', 'concurrency', 'queries', 'policy', 'errors'] as const
+export const HELP_TOPICS = ['start', 'ids', 'schema', 'operations', 'evidence', 'workflow', 'concurrency', 'queries', 'policy', 'errors', 'adopt'] as const
 export type HelpTopic = typeof HELP_TOPICS[number]
 
 const INDEX = `like-b4: architecture model (LikeC4) + change-set ledger + evidence, in one git repo.
@@ -15,7 +15,8 @@ Topics (help topic=<name>):
 - concurrency: several agents at once; head, expected_head, locks
 - queries: bounded reads (overview, search, expand, element, story, changes, change, project, qualify)
 - policy: promotion and verification policies
-- errors: error codes and what to do`
+- errors: error codes and what to do
+- adopt: bringing an existing system into the ledger`
 
 const TOPICS: Record<HelpTopic, string> = {
   start: `1. overview -> roots, counts, open change sets, head.
@@ -85,6 +86,11 @@ qualify(environment?, revision?, render?, detail=counts|full): committed baselin
 
   policy: `Promotion (default): disposition accepted; all depends_on promoted; committed and clean tree. Implementation status does not gate promotion: the baseline is accepted declared architecture, not proof it is built or correct.
 Verification (default): observations need code_revision; approvals never verify alone; status is environment-qualified. Stricter policies (required kinds, required approval) exist in the library; the server uses defaults.`,
+
+  adopt: `Two paths. Both end with everything imported marked inferred and showing as unverified in qualify until evidence arrives.
+A. No model yet: bootstrap mode=init name=<project> [kinds, relationship_kinds, tags]. Then survey the codebase and propose change sets with inferred:true and implementation:implemented, one per bounded context or top-level system (<=50 operations each; parents before children; relationships after both ends). Cite what you read in sources (role other, ref=repo path). set_disposition accepted, promote. Do not invent components you did not see; prefer fewer, truer elements. Pick stable ids you would keep after a rename: ent-<system>-<component>, rel-<from>-<verb>-<to>.
+B. Existing LikeC4 model in model/: bootstrap mode=adopt. Assigns missing stable ids (regenerates model/model.c4), records one inferred, pre-ledger-promoted change set per root plus one for cross-root relationships. Idempotent.
+Afterwards: qualify shows unverified for every imported entity; record_evidence turns it green over time. Specification kinds are fixed at init; choose them to fit the system.`,
 
   errors: `Responses are compact JSON. ok:false carries error, code and often issues[] with path + message.
 VALIDATION: fix the listed issues (paths are JSON pointers into the change set). NOT_FOUND: unknown entity/change id (check help ids). REPO_MOVED: HEAD changed since expected_head; re-read and retry. LOCK_BUSY: another write running; retry. REFUSED: policy refused (message says why). PROJECTION: operations do not apply (issues per change set). INVALID_MODEL: regenerated model failed to load; nothing was written.`,

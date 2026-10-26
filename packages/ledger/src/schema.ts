@@ -104,6 +104,8 @@ export const ChangeSet = z.strictObject({
   operations: z.array(Operation).default([]),
   references: z.array(Reference).default([]),
   promotion: Promotion.optional(),
+  /** Declared architecture inferred during adoption rather than designed: unverified knowledge until evidence says otherwise. */
+  inferred: z.boolean().optional(),
 })
 
 export type Promotion = z.infer<typeof Promotion>

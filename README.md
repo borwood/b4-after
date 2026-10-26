@@ -9,6 +9,7 @@ a companion to [LikeC4](https://likec4.dev). The mission and requirements are in
 | `packages/ledger` | `@like-b4/ledger`: change-set schema, stable identity, git provenance, `storyOf()`, validation, candidate projections, governed promotion, evidence and derived verification, qualified baseline |
 | `packages/mcp` | `@like-b4/mcp`: the agent-facing MCP server over a model-data repository |
 | `examples/billing` | a small model-data repository used by the tests |
+| `skills/like-b4-adopt` | Claude skill for bringing an existing codebase into the ledger (copy to `.claude/skills/` or `~/.claude/skills/`) |
 | `spikes/phase-a` | the LikeC4 feasibility spike and its findings |
 
 ```

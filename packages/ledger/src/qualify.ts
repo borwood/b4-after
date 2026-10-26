@@ -80,6 +80,7 @@ export async function qualifyBaseline(repoDir: string, opts: QualifyOptions = {}
       const reason = v.status === 'verified' ? `all targets of ${rec.changeSet.id} covered by passing observations`
         : v.status === 'failed' ? `failing observation on ${rec.changeSet.id}`
         : v.status === 'partial' ? `${rec.changeSet.id} has passing observations but ${v.uncovered.length} uncovered target(s)`
+        : rec.changeSet.inferred ? `inferred during adoption (${rec.changeSet.id}); no evidence yet`
         : `no passing observation on ${rec.changeSet.id}`
       q = { entityId: ent.id, type: ent.type, fqn: ent.fqn, status: v.status, changeId: rec.changeSet.id, basis, reason }
     }
