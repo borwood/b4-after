@@ -1,0 +1,13 @@
+id: CHG-043
+title: Replace payment gateway with in-house acquiring
+intent: Remove the external dependency for card charging
+sources:
+  - ref: https://example.test/issues/250
+    role: issue
+disposition: rejected
+implementation: not_started
+operations:
+  - op: remove_element
+    id: ent-payment-gateway
+  - op: remove_relationship
+    id: rel-charges-cards

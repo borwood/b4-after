@@ -1,0 +1,30 @@
+id: CHG-042
+title: Add asynchronous billing retries
+intent: Isolate transient payment failures from synchronous billing requests
+sources:
+  - ref: https://example.test/issues/238
+    role: requirement
+  - ref: https://example.test/issues/238#acceptance-criteria
+    role: acceptance_criteria
+depends_on:
+  - CHG-037
+disposition: proposed
+implementation: not_started
+operations:
+  - op: add_element
+    id: ent-billing-retry-worker
+    parent: ent-billing
+    name: retry_worker
+    kind: component
+    title: Billing Retry Worker
+    technology: Node.js worker
+  - op: add_relationship
+    id: rel-billing-api-publishes-retries
+    from: ent-billing-api
+    to: ent-billing-retry-worker
+    kind: publishes_to
+    title: enqueues retries
+references:
+  - entity: ent-invoice-ui
+    relation: relates_to
+    reason: Failure and retry status is user-visible; model shape unchanged

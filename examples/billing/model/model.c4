@@ -1,0 +1,71 @@
+model {
+  customer = actor 'Customer' {
+    description 'Pays invoices'
+    metadata {
+      stable_id 'ent-customer'
+    }
+  }
+
+  billing = system 'Billing Platform' {
+    metadata {
+      stable_id 'ent-billing'
+      owner 'payments-team'
+    }
+
+    invoice_ui = container 'Invoice UI' {
+      technology 'React'
+      metadata {
+        stable_id 'ent-invoice-ui'
+      }
+    }
+
+    billing_api = container 'Billing API' {
+      technology 'Node.js'
+      metadata {
+        stable_id 'ent-billing-api'
+      }
+
+      charges = component 'Charges Handler' {
+        metadata {
+          stable_id 'ent-charges'
+        }
+      }
+    }
+
+    ledger_db = datastore 'Ledger DB' {
+      technology 'PostgreSQL'
+      metadata {
+        stable_id 'ent-ledger-db'
+      }
+    }
+
+    invoice_ui -[uses]-> billing_api 'calls' {
+      metadata {
+        stable_id 'rel-invoice-ui-calls-billing-api'
+      }
+    }
+    billing_api.charges -[writes_to]-> ledger_db 'persists charges' {
+      metadata {
+        stable_id 'rel-charges-persist-ledger-db'
+      }
+    }
+  }
+
+  payment_gateway = system 'Payment Gateway' {
+    #external
+    metadata {
+      stable_id 'ent-payment-gateway'
+    }
+  }
+
+  customer -[uses]-> billing.invoice_ui 'views invoices' {
+    metadata {
+      stable_id 'rel-customer-views-invoices'
+    }
+  }
+  billing.billing_api.charges -[uses]-> payment_gateway 'charges cards' {
+    metadata {
+      stable_id 'rel-charges-cards'
+    }
+  }
+}

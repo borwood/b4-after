@@ -1,0 +1,16 @@
+{
+  "name": "like-b4",
+  "private": true,
+  "description": "Architecture Change Ledger: agent-facing architecture model and change-history tooling built on LikeC4",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "typecheck": "npm run typecheck --workspaces"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

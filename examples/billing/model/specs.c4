@@ -1,0 +1,23 @@
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element system
+  element container
+  element component
+  element datastore {
+    style {
+      shape cylinder
+    }
+  }
+
+  relationship uses
+  relationship publishes_to
+  relationship writes_to
+
+  tag external {
+    color #64748b
+  }
+}

@@ -1,0 +1,24 @@
+id: CHG-037
+title: Introduce ledger database
+intent: Persist charges durably instead of in the legacy CSV exporter
+sources:
+  - ref: https://example.test/issues/201
+    role: requirement
+disposition: accepted
+implementation: implemented
+operations:
+  - op: add_element
+    id: ent-ledger-db
+    parent: ent-billing
+    name: ledger_db
+    kind: datastore
+    title: Ledger DB
+    technology: PostgreSQL
+  - op: add_relationship
+    id: rel-charges-persist-ledger-db
+    from: ent-charges
+    to: ent-ledger-db
+    kind: writes_to
+    title: persists charges
+  - op: remove_element
+    id: ent-legacy-exporter
