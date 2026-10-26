@@ -113,10 +113,62 @@ change set gains a `promotion` record, in one commit with provenance trailers. A
 the working tree. A change set recorded after its operations were already in the baseline carries
 `promotion.baseline: pre-ledger`.
 
+## Phase D: evidence, derived verification, qualified baseline
+
+```ts
+import { recordEvidence, deriveVerification, qualifyBaseline, formatStory, formatQualification } from '@like-b4/ledger'
+
+await recordEvidence(repoDir, 'CHG-042', {
+  id: 'ev-042-ci', kind: 'test', result: 'pass', source_ref: 'https://ci/runs/9912',
+  code_revision: '3f2a1c9', environment: 'staging', observed_at: '2026-04-11T12:00:00Z', recorded_by: 'ci-agent',
+}, { actor: 'ci-agent', expectedRevision: sha })
+
+const ledger = await Ledger.load(repoDir)             // every record carries .evidence and .verification
+ledger.verificationOf('CHG-042', { environment: 'production' })
+const q = await qualifyBaseline(repoDir, { environment: 'staging' })  // per-entity status over the committed model
+formatStory(await storyOf(repoDir, { entity: 'ent-billing', subtree: true }))
+```
+
+**Evidence** lives in `evidence/CHG-<n>.yaml`, one file per change set, append-only. A record has
+`id`, `kind` (test, runtime_observation, deployment, code_review, manual_review), `result` (pass,
+fail, inconclusive), optional `targets` (stable ids the record speaks to; none means the whole
+change set), `source_ref`, optional `code_revision` and `environment`, `observed_at`,
+`recorded_by`, and optional `amends` pointing at an earlier record it corrects. Corrections are new
+records; the prior claim stays on file and in git. `recordEvidence` refuses evidence for unknown
+change sets or uninvolved entities and commits with `Change-Id`, `Evidence-Id`, `Actor`, `Kind`,
+`Result` trailers. It never touches `model/` or `changes/`.
+
+**Verification is derived, never asserted.** `deriveVerification(changeSet, records, policy)`:
+
+- Targets are the change set's operation ids. Relationship endpoints and `relates_to` references
+  are not targets; evidence aimed at them is listed as ignored with the reason.
+- Only *observations* (test, runtime_observation) can verify. Approvals (code_review,
+  manual_review) and deployments are surfaced separately and never verify by themselves (AT-06).
+- A passing observation counts only with a `code_revision` (policy `requireCodeRevision`, default
+  true). Records amended by a later record, and inconclusive results, are ignored.
+- `failed` if any applicable observation failed; `verified` when every target is covered by a
+  passing observation and any `requireKinds` / `requireApproval` policy is met; `partial` when
+  there are passing observations without full coverage; otherwise `unverified`.
+- `environment` restricts to that environment plus environment-agnostic records. Status is
+  therefore always qualified by environment (`any` when none was asked for).
+
+The result says what it rests on: `basis`, `failing`, `covered`, `uncovered`, `approvals`,
+`deployments`, `ignored`. Ledger records expose it as `verification`; story entries carry a
+summary and can include the records and full derivation with `include: ['evidence']`; a
+historical query shows only the evidence on file at that revision (AT-04).
+
+**qualifyBaseline** annotates each entity of the committed model with the verification of the
+promoted change set that last operated on it (`unrecorded` when none). It does not filter the
+architecture by status (PRD 6.3 warns against that); it tags and recolours entities so a rendered
+diagram shows what is verified, partial, failed, unverified, or unrecorded, per environment and
+at any revision.
+
+**formatStory / formatQualification** render compact Markdown summaries for agents and humans.
+
 ## Not yet
 
-Evidence records and verification/released projections (Phase D), historical subtree membership
-modes, and the agent-facing MCP facade.
+Historical subtree membership modes, release/deployment projections beyond listing deployment
+evidence, and the agent-facing MCP facade.
 
 ## Development
 

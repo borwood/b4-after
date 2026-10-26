@@ -5,6 +5,7 @@ Layout of a model-data repository as consumed by `@like-b4/ledger`:
 ```
 model/      LikeC4 DSL. Machine-generated; agents are the only writers.
 changes/    One YAML record per logical change set, CHG-<n>.yaml. Versioned over time in git.
+evidence/   One YAML file per change set with appended evidence records. Verification is derived from these.
 ```
 
 Every element and relationship in `model/` carries `stable_id` metadata. Change sets refer to

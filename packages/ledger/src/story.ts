@@ -3,8 +3,9 @@ import { Ledger, type ChangeRecord, type Participation } from './ledger.js'
 import { IdentityRegistry } from './identity.js'
 import { loadModel } from './model.js'
 import type { Source, Operation, Reference, Disposition, Implementation } from './schema.js'
+import { deriveVerification, type EvidenceRecord, type Verification, type VerificationStatus } from './evidence.js'
 
-export type StoryInclude = 'operations' | 'references' | 'sources' | 'commits'
+export type StoryInclude = 'operations' | 'references' | 'sources' | 'commits' | 'evidence'
 
 export interface StoryQuery {
   /** Stable id, or a current FQN (resolved against the model at the selected snapshot). */
@@ -18,6 +19,8 @@ export interface StoryQuery {
   limit?: number
   cursor?: string
   include?: StoryInclude[]
+  /** Derive verification for this environment only (plus environment-agnostic evidence). Default: any. */
+  environment?: string
 }
 
 export interface StoryEntry {
@@ -26,6 +29,9 @@ export interface StoryEntry {
   intent: string
   disposition: Disposition
   implementation: Implementation
+  /** Derived from evidence on file at the snapshot; never asserted (PRD 6.1). */
+  verification: { status: VerificationStatus; environment: string; basis: string[]; failing: string[]; uncovered: string[] }
+  promoted: boolean
   /** Committer date of the first commit recording this change set, as visible at the snapshot. */
   recordedAt: string | null
   lastRecordedAt: string | null
@@ -39,6 +45,8 @@ export interface StoryEntry {
   sources?: Source[]
   operations?: Operation[]
   references?: Reference[]
+  /** Full evidence records and the complete derivation, when include has 'evidence'. */
+  evidence?: { records: EvidenceRecord[]; derivation: Verification }
   commits: { sha: string; recordedAt: string; subject: string }[]
   dependsOn: string[]
   supersedes: string[]
@@ -90,7 +98,7 @@ export async function storyOf(repoDir: string, q: StoryQuery, deps: StoryDeps = 
   const limit = Math.max(1, Math.min(q.limit ?? DEFAULT_LIMIT, MAX_LIMIT))
   const offset = decodeCursor(q.cursor)
 
-  const ledger = deps.ledger ?? await Ledger.load(repoDir, { revision: q.revision, before: q.before })
+  const ledger = deps.ledger ?? await Ledger.load(repoDir, { revision: q.revision, before: q.before, verification: q.environment ? { environment: q.environment } : undefined })
 
   // Model at the same snapshot, for FQN resolution and subtree membership.
   let registry: IdentityRegistry | null = deps.registry ?? null
@@ -148,7 +156,7 @@ export async function storyOf(repoDir: string, q: StoryQuery, deps: StoryDeps = 
   const page = records.slice(offset, offset + limit)
   const truncated = offset + page.length < total
 
-  const entries = page.map(r => toEntry(r, memberSet, include))
+  const entries = page.map(r => toEntry(r, memberSet, include, q.environment))
   return {
     subject: { requested: q.entity, resolved, members, attachedRelationships, membership, unidentifiedDescendants },
     snapshot: {
@@ -166,16 +174,21 @@ export async function storyOf(repoDir: string, q: StoryQuery, deps: StoryDeps = 
   }
 }
 
-function toEntry(r: ChangeRecord, members: Set<string>, include: Set<StoryInclude>): StoryEntry {
+function toEntry(r: ChangeRecord, members: Set<string>, include: Set<StoryInclude>, environment?: string): StoryEntry {
   const cs = r.changeSet
   const matched = r.participants.filter(p => members.has(p.entityId))
   const others = dedupeParticipants(r.participants.filter(p => !members.has(p.entityId)))
+  const v = environment && r.verification.environment !== environment
+    ? deriveVerificationFor(r, environment)
+    : r.verification
   return {
     changeId: cs.id,
     title: cs.title,
     intent: cs.intent,
     disposition: cs.disposition,
     implementation: cs.implementation,
+    verification: { status: v.status, environment: v.environment, basis: v.basis, failing: v.failing, uncovered: v.uncovered },
+    promoted: !!cs.promotion,
     recordedAt: r.firstRecordedAt,
     lastRecordedAt: r.lastRecordedAt,
     ...(cs.effective_at ? { effectiveAt: cs.effective_at } : {}),
@@ -185,12 +198,17 @@ function toEntry(r: ChangeRecord, members: Set<string>, include: Set<StoryInclud
     ...(include.has('sources') ? { sources: cs.sources } : {}),
     ...(include.has('operations') ? { operations: cs.operations } : {}),
     ...(include.has('references') ? { references: cs.references } : {}),
+    ...(include.has('evidence') ? { evidence: { records: r.evidence, derivation: v } } : {}),
     commits: include.has('commits')
       ? r.commits.map(c => ({ sha: c.sha, recordedAt: c.committedAt, subject: c.subject }))
       : r.commits.slice(0, 1).map(c => ({ sha: c.sha, recordedAt: c.committedAt, subject: c.subject })),
     dependsOn: cs.depends_on,
     supersedes: cs.supersedes,
   }
+}
+
+function deriveVerificationFor(r: ChangeRecord, environment: string): Verification {
+  return deriveVerification(r.changeSet, r.evidence, { environment })
 }
 
 function dedupeParticipants(ps: Participation[]): Participation[] {

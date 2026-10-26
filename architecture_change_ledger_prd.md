@@ -182,6 +182,8 @@ references:
 
 These enums and transition rules remain **[O]**. Evidence should distinguish *observation* from *approval*: CI success proves that a specific run passed, not that an entire architectural claim is verified.
 
+**[P]** *(Phase D, 2026-10-26.)* Implemented as stated: `disposition` and `implementation` are recorded on the change set; `verification` is never recorded, only derived from evidence under a policy (`deriveVerification`). Evidence kinds are classed as observation (test, runtime_observation), approval (code_review, manual_review), or deployment. Only observations with a `code_revision` can verify; approvals and deployments are surfaced but never verify by themselves. Status is always environment-qualified. Disposition transitions follow the table in `setDisposition`.
+
 ### 6.2 Evidence records
 
 **[S]** Evidence attaches to a logical change, relevant operation/entity as needed, a version/scope, and a source artifact. It should be possible to answer *what justified marking this as verified?*
@@ -190,13 +192,15 @@ These enums and transition rules remain **[O]**. Evidence should distinguish *ob
 
 Evidence may be appended or amended in Git-tracked files; Git history must preserve prior claims and corrections. Do not infer verified status solely from PR merge or model publication.
 
+**[P]** *(Phase D.)* Records live in `evidence/CHG-<n>.yaml`, append-only; a correction is a new record with `amends: <id>`. Fields as listed above plus `id` and `amends`; `target_ids` is `targets` and defaults to the whole change set. `recordEvidence` validates against the ledger and commits with provenance trailers.
+
 ### 6.3 Projections
 
 **[S]** A hypothetical change must be queryable/renderable without silently becoming part of the committed baseline. **[P]** Initial projection modes:
 
 - **Baseline:** committed LikeC4 model at a selected model-repository Git revision; its accuracy remains evidence-qualified.
 - **Candidate:** selected baseline plus an explicit set of change-set operations, subject to dependency, conflict, and schema validation; visually distinguish candidate additions/changes where feasible.
-- **Verified/released:** a future policy-defined projection based on the qualifying evidence and environment. **Do not claim this is automatically implementable by filtering node statuses.**
+- **Verified/released:** a future policy-defined projection based on the qualifying evidence and environment. **Do not claim this is automatically implementable by filtering node statuses.** *(Phase D delivers `qualifyBaseline`: the committed model annotated per entity with the derived status of the promoted change set that last operated on it, by environment and revision. It annotates; it does not filter. A release projection beyond listing deployment evidence remains open.)*
 
 **[O]** Decide promotion policy: when does an accepted/implemented change become part of the committed baseline, what actor may promote it, and how is that reconciled with later verification or deployment? Model source is generated only by the agent-facing tooling; avoid silent changes.
 

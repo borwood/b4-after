@@ -30,6 +30,7 @@ export async function makeRepo(): Promise<Fixture> {
   // Stage 1: model and CHG-037.
   await cp(join(EXAMPLE_DIR, 'model'), join(dir, 'model'), { recursive: true })
   await cp(join(EXAMPLE_DIR, 'changes', 'CHG-037.yaml'), join(dir, 'changes', 'CHG-037.yaml'))
+  await cp(join(EXAMPLE_DIR, 'evidence', 'CHG-037.yaml'), join(dir, 'evidence', 'CHG-037.yaml'))
   await git.add(['.'])
   const stage1 = await git.commit('accept CHG-037: Introduce ledger database\n\nChange-Id: CHG-037\nActor: fixture\n', { date: T1 })
 

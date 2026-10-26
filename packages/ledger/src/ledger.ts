@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import YAML from 'yaml'
 import { ChangeSet, type ChangeSet as ChangeSetT, type Operation } from './schema.js'
 import { Git, type Commit } from './git.js'
+import { EVIDENCE_DIR, EvidenceError, deriveVerification, parseEvidenceFile, type EvidenceRecord, type Verification, type VerificationPolicy } from './evidence.js'
 
 export const CHANGES_DIR = 'changes'
 
@@ -36,6 +37,12 @@ export interface ChangeRecord {
   lastRecordedAt: string | null
   unrecorded: boolean
   participants: Participation[]
+  /** Evidence records on file for this change set at the snapshot (amended records included; derivation ignores them). */
+  evidence: EvidenceRecord[]
+  /** Commits that touched the evidence file, newest first. */
+  evidenceCommits: Commit[]
+  /** Verification derived under the ledger's policy (default: any environment). Never asserted. */
+  verification: Verification
 }
 
 export interface LedgerSnapshot {
@@ -61,6 +68,9 @@ export interface LoadLedgerOptions {
   /** ISO date-time. Resolves to the latest commit at or before it on `revision` (default HEAD). */
   before?: string
   changesDir?: string
+  evidenceDir?: string
+  /** Policy for the verification derived on each record. */
+  verification?: VerificationPolicy
   /** Collect malformed records in `problems` instead of throwing. Default false (AR-15). */
   tolerant?: boolean
 }
@@ -130,6 +140,7 @@ export class Ledger {
 
   static async load(repoDir: string, opts: LoadLedgerOptions = {}): Promise<Ledger> {
     const changesDir = opts.changesDir ?? CHANGES_DIR
+    const evidenceDir = opts.evidenceDir ?? EVIDENCE_DIR
     const isGitRepo = await Git.isRepo(repoDir)
     const git = isGitRepo ? new Git(repoDir) : null
 
@@ -150,27 +161,44 @@ export class Ledger {
 
     const ledger = new Ledger(repoDir, { source, revision, ...(opts.before ? { before: opts.before } : {}), isGitRepo })
 
-    // 1. Read the records.
-    const files: { path: string; text: string }[] = []
-    if (source === 'revision') {
-      for (const path of await git!.lsTree(revision!, changesDir)) {
-        if (!/\.ya?ml$/i.test(path)) continue
-        files.push({ path, text: await git!.show(revision!, path) })
+    // 1. Read the records (change sets and evidence files).
+    const readDir = async (dir: string): Promise<{ path: string; text: string }[]> => {
+      const out: { path: string; text: string }[] = []
+      if (source === 'revision') {
+        for (const path of await git!.lsTree(revision!, dir)) {
+          if (!/\.ya?ml$/i.test(path)) continue
+          out.push({ path, text: await git!.show(revision!, path) })
+        }
+      } else {
+        let names: string[] = []
+        try { names = await readdir(join(repoDir, dir)) } catch { names = [] }
+        for (const name of names.filter(n => /\.ya?ml$/i.test(n)).sort()) {
+          const path = `${dir}/${name}`
+          out.push({ path, text: await readFile(join(repoDir, path), 'utf8') })
+        }
       }
-    } else {
-      let names: string[] = []
-      try { names = await readdir(join(repoDir, changesDir)) } catch { names = [] }
-      for (const name of names.filter(n => /\.ya?ml$/i.test(n)).sort()) {
-        const path = `${changesDir}/${name}`
-        files.push({ path, text: await readFile(join(repoDir, path), 'utf8') })
-      }
+      return out
     }
+    const files = await readDir(changesDir)
+    const evidenceFiles = await readDir(evidenceDir)
 
     // 2. Commit history per record, one git call.
     const commitsByPath = new Map<string, Commit[]>()
     if (git && revision) {
-      for (const c of await git.log({ rev: revision, paths: [changesDir] })) {
+      for (const c of await git.log({ rev: revision, paths: [changesDir, evidenceDir] })) {
         for (const f of c.files) (commitsByPath.get(f) ?? commitsByPath.set(f, []).get(f)!).push(c)
+      }
+    }
+    const evidenceByChange = new Map<string, EvidenceRecord[]>()
+    for (const { path, text } of evidenceFiles) {
+      try {
+        const file = parseEvidenceFile(text, path)
+        const expected = `${evidenceDir}/${file.change_id}.yaml`
+        if (path !== expected) throw new EvidenceError(`${path}: evidence file for ${file.change_id} must be at ${expected}`, [{ path, message: 'file name does not match change_id' }])
+        evidenceByChange.set(file.change_id, file.evidence)
+      } catch (e) {
+        if (e instanceof EvidenceError && opts.tolerant) { ledger.problems.push(...e.problems); continue }
+        throw e
       }
     }
 
@@ -196,19 +224,36 @@ export class Ledger {
       }
       const commits = commitsByPath.get(path) ?? []
       const participants = participantsOf(cs)
+      const evidence = evidenceByChange.get(cs.id) ?? []
       const rec: ChangeRecord = {
         changeSet: cs, path, commits,
         firstRecordedAt: commits.length ? commits[commits.length - 1]!.committedAt : null,
         lastRecordedAt: commits.length ? commits[0]!.committedAt : null,
         unrecorded: commits.length === 0,
         participants,
+        evidence,
+        evidenceCommits: commitsByPath.get(`${evidenceDir}/${cs.id}.yaml`) ?? [],
+        verification: deriveVerification(cs, evidence, opts.verification),
       }
       ledger.records.set(cs.id, rec)
       for (const p of participants) {
         (ledger.byEntity.get(p.entityId) ?? ledger.byEntity.set(p.entityId, new Set()).get(p.entityId)!).add(cs.id)
       }
     }
+    for (const [changeId] of evidenceByChange) {
+      if (!ledger.records.has(changeId)) {
+        const problem = { path: `${evidenceDir}/${changeId}.yaml`, message: `evidence for ${changeId}, which is not in the ledger` }
+        if (!opts.tolerant) throw new LedgerError(problem.message, [problem])
+        ledger.problems.push(problem)
+      }
+    }
     return ledger
+  }
+
+  /** Re-derive verification for one change set under a different policy (e.g. a specific environment). */
+  verificationOf(changeId: string, policy: VerificationPolicy): Verification | undefined {
+    const rec = this.records.get(changeId)
+    return rec ? deriveVerification(rec.changeSet, rec.evidence, policy) : undefined
   }
 
   get(changeId: string): ChangeRecord | undefined { return this.records.get(changeId) }

@@ -16,3 +16,10 @@ export {
 export { renderProjection, materializeProjection, projectionToDSL, type RenderOptions, type RenderResult, type MaterializedWorkspace } from './render.js'
 export { proposeChangeSet, setDisposition, ProposalRejected, DISPOSITION_TRANSITIONS, type ProposeOptions, type ProposeResult, type DispositionOptions } from './propose.js'
 export { promoteChangeSet, PromotionRefused, type PromoteOptions, type PromoteResult, type PromotionPolicy } from './promote.js'
+export {
+  EvidenceRecord, EvidenceFile, EvidenceKind, EvidenceResult, EvidenceError, KIND_CLASS, EVIDENCE_DIR,
+  evidencePath, parseEvidenceFile, serializeEvidenceFile, deriveVerification, targetsOf, recordEvidence,
+  type EvidenceRecordInput, type Verification, type VerificationStatus, type VerificationPolicy, type RecordEvidenceOptions, type RecordEvidenceResult,
+} from './evidence.js'
+export { qualifyBaseline, QUALIFICATION_TAGS, type QualifiedBaseline, type EntityQualification, type QualificationStatus, type QualifyOptions } from './qualify.js'
+export { formatStory, formatEntry, formatQualification } from './format.js'

@@ -1,0 +1,17 @@
+change_id: CHG-037
+evidence:
+  - id: ev-037-ci
+    kind: test
+    result: pass
+    source_ref: https://ci.example.test/runs/8801
+    code_revision: a1b2c3d
+    environment: staging
+    observed_at: 2026-01-09T18:00:00+00:00
+    recorded_by: ci-agent
+    notes: integration suite covering charge persistence
+  - id: ev-037-review
+    kind: code_review
+    result: pass
+    source_ref: https://example.test/pulls/412
+    observed_at: 2026-01-09T20:00:00+00:00
+    recorded_by: reviewer-1
