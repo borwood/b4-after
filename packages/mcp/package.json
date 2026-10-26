@@ -1,0 +1,27 @@
+{
+  "name": "@like-b4/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent-facing MCP server over a LikeC4 model-data repository and its change ledger",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "like-b4-mcp": "./bin/like-b4-mcp.mjs"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@like-b4/ledger": "0.1.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}

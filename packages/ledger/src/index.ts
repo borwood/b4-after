@@ -23,3 +23,7 @@ export {
 } from './evidence.js'
 export { qualifyBaseline, QUALIFICATION_TAGS, type QualifiedBaseline, type EntityQualification, type QualificationStatus, type QualifyOptions } from './qualify.js'
 export { formatStory, formatEntry, formatQualification } from './format.js'
+export {
+  overview, search, expand, elementDetail, resolveElement, elementRow, relationshipRow,
+  type Snapshot, type Overview, type SearchOptions, type SearchResult, type ExpandOptions, type ExpandResult, type ElementDetail, type ElementRow, type RelationshipRow,
+} from './queries.js'
