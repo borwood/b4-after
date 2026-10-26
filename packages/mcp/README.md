@@ -28,8 +28,23 @@ Any other MCP client, over stdio:
 ```
 
 The path is the model repository. It does not need to exist yet: the `bootstrap` tool creates it
-as its own git repository on first use. Relative paths resolve from the directory the client
-launches the server in, so prefer an absolute path when in doubt.
+as its own git repository on first use. A relative path is anchored to the top level of the
+**main worktree** of the git repository the server is launched in, not to the current directory.
+That is what makes `./architecture` safe to commit in a project-scoped MCP config: a session or
+subagent running in a linked worktree, or in a subdirectory, still reaches the one shared ledger
+rather than initialising a second one. Outside any git repository the path is relative to the
+current directory; absolute paths are used as given.
+
+## Worktrees and subagents
+
+The model repository is one shared, linear ledger, not a branch of the code. Agents working in
+parallel worktrees all write to it directly, and the ledger merges by intent rather than by text:
+distinct change sets never conflict, re-proposing an id revises it, overlapping operations without
+a `depends_on` fail projection with `E_CONFLICT`, and every write is serialised by the lock with
+`expected_head` for optimistic concurrency. A workable division of labour: the planner proposes
+the change set; implementing subagents read, record evidence at their branch's `code_revision`
+with an `environment` such as `local` or `ci-pr`, and update implementation status; promotion
+happens when the work lands on the main branch.
 
 ## CLI
 

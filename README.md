@@ -19,9 +19,10 @@ the repository, recording an inferred C4 baseline, and promoting it. From there,
 plan, however hypothetical, goes through the same agent-facing tools: propose, inspect, accept,
 promote, prove.
 
-`./architecture` is where the model repository will live (its own small git repository, created on
-first use). Give an absolute path if your agent runs from elsewhere, and either keep the directory
-as a sibling repository or add it to your code repository's `.gitignore`.
+`./architecture` is where the model repository will live: its own small git repository, created on
+first use, nested in your checkout. Add it to your code repository's `.gitignore`. A relative path
+is anchored to the main worktree of your code repository, so sessions and subagents running in
+linked git worktrees all share the one ledger instead of starting their own.
 
 ## What you get
 

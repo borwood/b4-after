@@ -74,7 +74,8 @@ project(changes=[..]): candidate on top of the baseline, nothing written. Depend
 - Writes take a cross-process lock, then run. Pass expected_head=<head you read> to refuse the write if someone else committed in between (error REPO_MOVED: re-read, re-validate, retry). Without expected_head the write proceeds on whatever HEAD is current.
 - Writes return the new head. Chain: read -> propose(expected_head) -> set_disposition(expected_head=new head) -> ...
 - Change-set ids: pick an unused CHG-<n> (overview.ledger shows counts; changes lists ids). Two agents proposing the same new id: the second revises the first; use distinct ids per task.
-- Lock busy (LOCK_BUSY): another write is in progress; retry after a short wait.`,
+- Lock busy (LOCK_BUSY): another write is in progress; retry after a short wait.
+- Git worktrees: the model repository is one shared, linear ledger, not a branch of the code. A relative repoDir resolves against the main worktree of the surrounding code repository, so worktrees and subagents all hit the same ledger; never init a second one from a worktree. Record branch-local evidence with an environment (e.g. local, ci-pr) so qualify can be asked per environment.`,
 
   queries: `overview(): counts, roots (<=20), open change sets, head, identity problems.
 search(query, kinds?, tags?, limit<=50): ranked by id/fqn/title match.

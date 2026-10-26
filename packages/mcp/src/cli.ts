@@ -6,6 +6,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { RepoContext } from './context.js'
+import { resolveRepoDir } from './paths.js'
 import { createServer, SERVER_VERSION } from './server.js'
 
 const USAGE = `usage:
@@ -48,10 +49,14 @@ async function serve(args: string[]): Promise<void> {
     else if (a.startsWith('-')) { process.stderr.write(`unknown option ${a}\n${USAGE}`); process.exit(2) }
     else repoDir = a
   }
-  const ctx = new RepoContext(resolve(repoDir), { actor })
+  // A relative path anchors to the main worktree of the surrounding code repository, so every
+  // linked worktree, subagent, and the main session share one ledger (see paths.ts).
+  const resolved = await resolveRepoDir(repoDir)
+  const ctx = new RepoContext(resolved.dir, { actor })
   const server = createServer(ctx)
   await server.connect(new StdioServerTransport())
-  process.stderr.write(`b4-after ${SERVER_VERSION}: ${ctx.repoDir}${actor ? ` (actor ${actor})` : ''}\n`)
+  const anchor = resolved.via === 'main-worktree' ? ` (relative to main worktree ${resolved.mainWorktree})` : ''
+  process.stderr.write(`b4-after ${SERVER_VERSION}: ${ctx.repoDir}${anchor}${actor ? ` (actor ${actor})` : ''}\n`)
 }
 
 const argv = process.argv.slice(2)
