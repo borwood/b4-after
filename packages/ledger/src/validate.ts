@@ -65,15 +65,31 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
     return { ok: !issues.some(i => i.severity === 'error'), changeSet: cs, issues }
   }
 
-  const spec = reg.model.$data.specification as { elements: Record<string, unknown>; relationships: Record<string, unknown> }
+  const spec = reg.model.$data.specification as { elements: Record<string, unknown>; relationships: Record<string, unknown>; tags: Record<string, unknown> }
   const elementKinds = new Set(Object.keys(spec.elements ?? {}))
   const relationshipKinds = new Set(Object.keys(spec.relationships ?? {}))
+  const tags = new Set(Object.keys(spec.tags ?? {}))
+  const checkTags = (list: string[] | undefined, path: string) => {
+    for (const t of list ?? []) if (!tags.has(t)) err('E_UNKNOWN_TAG', path, `tag "${t}" is not in the specification (known: ${[...tags].join(', ') || 'none'})`)
+  }
 
   // Virtual state while walking operations in order.
   const added = new Map<string, VirtualElement>()
   const addedRels = new Map<string, { from: string; to: string }>()
   const removed = new Set<string>()
+  /** Relationships taken away by an element removal earlier in this change set. */
+  const cascaded = new Set<string>()
   const mutated = new Set<string>()
+  const cascadeRemove = (fqn: string) => {
+    const under = (f: string) => f === fqn || f.startsWith(fqn + '.')
+    for (const r of reg.elements()) if (under(r.fqn)) removed.add(r.stableId)
+    for (const [id, v] of added) if (under(v.fqn)) removed.add(id)
+    for (const r of reg.relationships()) if (under(r.fromFqn) || under(r.toFqn)) { removed.add(r.stableId); cascaded.add(r.stableId) }
+    for (const [id, v] of addedRels) {
+      const f = elementFqn(v.from), t = elementFqn(v.to)
+      if ((f && under(f)) || (t && under(t))) { removed.add(id); cascaded.add(id) }
+    }
+  }
 
   const elementFqn = (id: string): string | undefined => added.get(id)?.fqn ?? reg.element(id)?.fqn
   const elementExists = (id: string) => !removed.has(id) && (added.has(id) || !!reg.element(id))
@@ -95,6 +111,7 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
       case 'add_element': {
         if (reg.get(op.id) || added.has(op.id) || addedRels.has(op.id)) err('E_DUPLICATE_ID', `${p}/id`, `${op.id} already exists`)
         if (!elementKinds.has(op.kind)) err('E_UNKNOWN_KIND', `${p}/kind`, `element kind "${op.kind}" is not in the specification (known: ${[...elementKinds].join(', ')})`)
+        checkTags(op.tags, `${p}/tags`)
         let parentFqn: string | null = null
         if (op.parent !== null) {
           if (requireElement(op.parent, `${p}/parent`, 'parent')) parentFqn = elementFqn(op.parent)!
@@ -110,6 +127,7 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
       case 'update_element': {
         if (requireElement(op.id, `${p}/id`, 'element')) mutated.add(op.id)
         if (Object.keys(op.set).length === 0) warn('W_EMPTY_UPDATE', `${p}/set`, 'update has no fields')
+        checkTags(op.set.tags, `${p}/set/tags`)
         break
       }
       case 'move_element': {
@@ -126,7 +144,10 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
         break
       }
       case 'remove_element': {
-        if (requireElement(op.id, `${p}/id`, 'element')) { removed.add(op.id); mutated.add(op.id) }
+        if (requireElement(op.id, `${p}/id`, 'element')) {
+          cascadeRemove(elementFqn(op.id)!)
+          removed.add(op.id); mutated.add(op.id)
+        }
         break
       }
       case 'add_relationship': {
@@ -134,6 +155,7 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
         if (op.kind !== undefined && !relationshipKinds.has(op.kind)) {
           err('E_UNKNOWN_RELATIONSHIP_KIND', `${p}/kind`, `relationship kind "${op.kind}" is not in the specification (known: ${[...relationshipKinds].join(', ')})`)
         }
+        checkTags(op.tags, `${p}/tags`)
         const okFrom = requireElement(op.from, `${p}/from`, 'source')
         const okTo = requireElement(op.to, `${p}/to`, 'target')
         if (okFrom && okTo) {
@@ -148,13 +170,16 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
       }
       case 'update_relationship':
       case 'remove_relationship': {
-        if (removed.has(op.id)) err('E_AFTER_REMOVE', `${p}/id`, `relationship ${op.id} was removed earlier in this change set`)
+        if (cascaded.has(op.id) && op.op === 'remove_relationship') {
+          warn('W_REDUNDANT_REMOVE', `${p}/id`, `relationship ${op.id} is already removed with its endpoint earlier in this change set`)
+        } else if (removed.has(op.id)) err('E_AFTER_REMOVE', `${p}/id`, `relationship ${op.id} was removed earlier in this change set`)
         else if (!relationshipExists(op.id)) {
           const hint = reg.element(op.id) ? ' (it is an element id)' : ''
           err('E_UNKNOWN_ENTITY', `${p}/id`, `relationship ${op.id} does not exist in the baseline${hint}`)
         } else {
           mutated.add(op.id)
           if (op.op === 'remove_relationship') removed.add(op.id)
+          else checkTags(op.set.tags, `${p}/set/tags`)
         }
         break
       }

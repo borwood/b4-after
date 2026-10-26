@@ -200,6 +200,8 @@ Evidence may be appended or amended in Git-tracked files; Git history must prese
 
 **[O]** Decide promotion policy: when does an accepted/implemented change become part of the committed baseline, what actor may promote it, and how is that reconciled with later verification or deployment? Model source is generated only by the agent-facing tooling; avoid silent changes.
 
+**[P]** *(Phase C, 2026-10-26.)* Initial promotion policy, implemented in `promoteChangeSet`: a change set is promotable when it is committed, `accepted`, not yet promoted, and all of its `depends_on` are promoted. Promotion applies the operations to the committed baseline, regenerates `model/model.c4`, verifies the regenerated model loads with every stable id intact, and records a `promotion { at, baseline, actor }` block on the change set, all in one commit. Promoted change sets are frozen. The baseline therefore represents **accepted declared architecture**; implementation and verification remain separate axes and do not gate promotion by default (policy can require them). Reconciliation with later verification is Phase D.
+
 **[S]** *(Resolved by Phase A, 2026-10-25.)* LikeC4's builder supports add and update; remove and move are done by editing parsed data and recomputing. Source-preserving writes are not needed because model source is never hand-authored. See `spikes/phase-a/FINDINGS.md`.
 
 ## 7. Historical query: `storyOf()`
@@ -247,7 +249,8 @@ renderProjection({ projectionId, view?, format? })
 proposeChangeSet({ changeSet, expectedBaseRevision? })
 validateChangeSet({ changeId, baseRevision? })
 recordEvidence({ changeId, evidence, expectedRevision? })
-// promoteChangeSet(...) deferred until governance and write semantics are specified
+setDisposition({ changeId, to, supersededBy? })          // governance transitions, fixed table
+promoteChangeSet({ changeId, expectedHead?, policy? })  // Phase C: behind the policy in 6.3
 ```
 
 **[S]** An agent must be able to request top-level context and selectively drill down without receiving the complete model. Defaults must make context-efficient retrieval the easy path. Write operations must validate input and avoid unrequested baseline mutation. **[P]** A dedicated MCP facade can expose these operations while calling LikeC4's model API/MCP internally; an agent skill should document navigation, state qualification, and safe change authoring.

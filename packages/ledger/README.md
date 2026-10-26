@@ -73,11 +73,50 @@ a registry only the schema is checked, and the result says so.
 associations; the commit supplies chronology and authorship. `expectedHead` refuses to write on a
 stale view of the repository.
 
-## Not in Phase B
+## Phase C: candidates, proposals, promotion
 
-Projections (applying operations to the model), candidate rendering, promotion to baseline,
-evidence records, composed multi-change projections, and the agent-facing MCP facade. Those are
-Phases C and D. The Phase A spike shows the mechanics each will use.
+```ts
+import { projectModel, renderProjection, proposeChangeSet, setDisposition, promoteChangeSet } from '@like-b4/ledger'
+
+const p = await projectModel(repoDir, { includeChanges: ['CHG-042', 'CHG-044'], baselineRevision?: sha })
+p.model            // computed LikeC4Model with the operations applied; baseline untouched
+p.diff             // added / updated / moved / removed (cascades marked)
+await renderProjection(p, { format: 'dsl' })                 // generated DSL for the candidate
+await renderProjection(p, { format: 'png', views: ['billing'] }) // via likec4 CLI (Playwright)
+
+await proposeChangeSet(repoDir, yamlObject, { actor, expectedBaseRevision: sha })
+await setDisposition(repoDir, 'CHG-042', 'accepted', { actor: 'reviewer' })
+await promoteChangeSet(repoDir, 'CHG-042', { actor, expectedHead: sha })
+```
+
+**Projections** apply operations to a copy of the baseline's parsed data and recompute. Each
+change set is validated against the state the previous ones produced, so hard conflicts fail
+validation; overlapping writes to the same field by change sets with no `depends_on` between them
+fail with `E_CONFLICT`. Dependencies must be included or already promoted; cycles and rejected
+dependencies are refused. Candidate additions and changes render amber with a dashed border and
+the `candidate` tag (added to the spec for the projection only); pass `highlight: false` to skip.
+Operation semantics: `update_*` merges (metadata keys are patched, tags replace); `move_element`
+rewrites FQNs, relationship endpoints, and view rules; `remove_element` cascades to descendants,
+attached relationships, and view predicates, and drops views scoped to the element.
+
+**proposeChangeSet** validates against HEAD's baseline and ledger and records the change set as
+`proposed` (or `draft`) in its own commit. It never touches `model/`. A promoted change set cannot
+be revised; propose a new one that depends on it. **setDisposition** records governance
+transitions (draft, proposed, accepted, rejected, superseded) with a fixed transition table.
+
+**promoteChangeSet** is the only write path into `model/`. Policy (default): the change set must be
+committed, `accepted`, not yet promoted, and every dependency must be promoted. The operations are
+applied without highlight, the DSL is regenerated, reloaded with the real parser, and every stable
+id is checked to survive, all before anything is written. Then `model/model.c4` is rewritten (other
+`.c4` files are removed on the first promotion: the generated file is the only source) and the
+change set gains a `promotion` record, in one commit with provenance trailers. Any failure restores
+the working tree. A change set recorded after its operations were already in the baseline carries
+`promotion.baseline: pre-ledger`.
+
+## Not yet
+
+Evidence records and verification/released projections (Phase D), historical subtree membership
+modes, and the agent-facing MCP facade.
 
 ## Development
 

@@ -12,8 +12,13 @@ import { Git } from './git.js'
 
 export const MODEL_DIR = 'model'
 
+/** LikeC4's parsed (pre-compute) model data. Projections operate on this and the DSL generator consumes it. */
+export type ParsedModelData = Record<string, any>
+
 export interface LoadedModel {
   model: LikeC4Model
+  /** Detached copy of the parsed data; safe to mutate. */
+  parsedData: ParsedModelData
   /** Where the model came from. */
   source: 'worktree' | 'revision'
   revision: string | null
@@ -60,8 +65,30 @@ async function readWorkspace(dir: string, source: LoadedModel['source'], revisio
       throw new Error(`invalid LikeC4 model (${source}${revision ? ' ' + revision.slice(0, 7) : ''}):\n  ${errors.join('\n  ')}`)
     }
     const model = await likec4.computedModel()
-    return { model, source, revision, errors }
+    const parsedData = structuredClone((await likec4.parsedModel()).$data) as ParsedModelData
+    return { model, parsedData, source, revision, errors }
   } finally {
     await likec4.dispose()
+  }
+}
+
+/** Compute a LikeC4Model from parsed data without touching any shared instance. */
+export async function modelFromParsedData(data: ParsedModelData): Promise<LikeC4Model> {
+  const { LikeC4Model } = await import('@likec4/core/model')
+  const { computeParsedModelData } = await import('@likec4/core/compute-view')
+  return LikeC4Model.create(computeParsedModelData(structuredClone(data) as any)) as unknown as LikeC4Model
+}
+
+/** Validate parsed data by generating DSL and loading it with the real LikeC4 parser. Returns the DSL. */
+export async function roundTripCheck(data: ParsedModelData): Promise<{ dsl: string; errors: string[] }> {
+  const { generate } = await import('likec4/generators/likec4')
+  const dsl = generate(data as any)
+  const tmp = await mkdtemp(join(tmpdir(), 'like-b4-check-'))
+  try {
+    await writeFile(join(tmp, 'model.c4'), dsl, 'utf8')
+    const loaded = await readWorkspace(tmp, 'worktree', null, false)
+    return { dsl, errors: loaded.errors }
+  } finally {
+    await rm(tmp, { recursive: true, force: true })
   }
 }

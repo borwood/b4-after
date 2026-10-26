@@ -79,6 +79,17 @@ export const Source = z.strictObject({
   note: z.string().optional(),
 })
 
+/**
+ * Recorded when the change set's operations were applied to the committed baseline (PRD 6.3 promotion).
+ * Written only by promoteChangeSet(); its presence means "already in the baseline".
+ */
+export const Promotion = z.strictObject({
+  at: z.iso.datetime({ offset: true }),
+  /** Baseline commit the operations were applied on top of, or "pre-ledger" for change sets recorded after the fact. */
+  baseline: z.union([z.string().regex(/^[0-9a-f]{7,40}$/), z.literal('pre-ledger')]),
+  actor: z.string().min(1),
+})
+
 export const ChangeSet = z.strictObject({
   id: changeId,
   title: z.string().min(1),
@@ -92,8 +103,10 @@ export const ChangeSet = z.strictObject({
   effective_at: z.iso.datetime({ offset: true }).optional(),
   operations: z.array(Operation).default([]),
   references: z.array(Reference).default([]),
+  promotion: Promotion.optional(),
 })
 
+export type Promotion = z.infer<typeof Promotion>
 export type Disposition = z.infer<typeof Disposition>
 export type Implementation = z.infer<typeof Implementation>
 export type SourceRole = z.infer<typeof SourceRole>
