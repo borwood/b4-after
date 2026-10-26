@@ -1,16 +1,22 @@
 {
-  "name": "like-b4",
+  "name": "b4-after",
   "private": true,
-  "description": "Architecture Change Ledger: agent-facing architecture model and change-history tooling built on LikeC4",
+  "description": "Architecture change ledger for AI agents: a C4 model (LikeC4), a ledger of intended changes, and the evidence that verifies them, in one git repository",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/borwood/b4-after.git"
+  },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
+    "typecheck": "npm run build -w packages/ledger && npm run typecheck -w packages/mcp",
     "test": "npm run test --workspaces",
-    "typecheck": "npm run typecheck --workspaces"
+    "pack:dry": "npm pack --dry-run --workspaces"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.22"
   }
 }

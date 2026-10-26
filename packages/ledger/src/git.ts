@@ -1,5 +1,6 @@
 // Thin git wrapper. The ledger relies on git for chronology, snapshots at a revision, and provenance.
 import { execFile } from 'node:child_process'
+import { realpath } from 'node:fs/promises'
 import { promisify } from 'node:util'
 
 const execFileP = promisify(execFile)
@@ -30,10 +31,17 @@ const US = '\x1f'
 export class Git {
   constructor(readonly dir: string) {}
 
+  /**
+   * True when `dir` is itself the top level of a git work tree. A model repository nested inside
+   * another repository's work tree without its own .git is not one: paths would resolve against
+   * the outer repository, so the ledger treats it as "no repository yet" and bootstrap inits one.
+   */
   static async isRepo(dir: string): Promise<boolean> {
     try {
-      const out = await new Git(dir).exec(['rev-parse', '--is-inside-work-tree'])
-      return out.trim() === 'true'
+      const top = (await new Git(dir).exec(['rev-parse', '--show-toplevel'])).trim()
+      const [a, b] = await Promise.all([realpath(top), realpath(dir)])
+      const norm = (p: string) => (process.platform === 'win32' ? p.toLowerCase() : p).replace(/[\\/]+$/, '')
+      return norm(a) === norm(b)
     } catch {
       return false
     }

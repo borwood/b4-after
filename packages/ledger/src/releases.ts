@@ -16,7 +16,7 @@ export interface ReleaseEvent {
   result: EvidenceResult
   observedAt: string
   codeRevision: string | null
-  /** Model-data revision the deployment speaks for: the record's baseline_revision, else the change set's promotion commit. */
+  /** Model repository revision the deployment speaks for: the record's baseline_revision, else the change set's promotion commit. */
   baselineRevision: string | null
   baselineSource: 'record' | 'promotion' | 'unknown'
   promoted: boolean

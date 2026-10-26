@@ -4,7 +4,7 @@
 export const HELP_TOPICS = ['start', 'ids', 'schema', 'operations', 'evidence', 'workflow', 'concurrency', 'queries', 'policy', 'errors', 'adopt'] as const
 export type HelpTopic = typeof HELP_TOPICS[number]
 
-const INDEX = `like-b4: architecture model (LikeC4) + change-set ledger + evidence, in one git repo.
+const INDEX = `b4-after: architecture model (LikeC4) + change-set ledger + evidence, in one git repo.
 Topics (help topic=<name>):
 - start: 5-step quickstart for a new task
 - ids: stable ids vs FQNs; how entities are named in every call
@@ -56,7 +56,7 @@ add_relationship makes from/to participants of the change set (for story) withou
 
   evidence: `Evidence record: { id: "ev-<slug>", kind: test|runtime_observation|deployment|code_review|manual_review, result: pass|fail|inconclusive,
   targets?: [<stable ids the change set operates on>] (none = whole change set), source_ref (url/key of the run, PR, trace),
-  code_revision? (required for an observation to count), baseline_revision? (model-data commit a deployment ran; else the promotion commit is used), environment?, observed_at (ISO), recorded_by, notes?, amends?: "ev-.." }
+  code_revision? (required for an observation to count), baseline_revision? (model repository commit a deployment ran; else the promotion commit is used), environment?, observed_at (ISO), recorded_by, notes?, amends?: "ev-.." }
 Deployments (kind=deployment, environment=<env>, result pass|fail) feed the releases tool; record one per deploy attempt.
 Derivation (never asserted): only observations (test, runtime_observation) with code_revision verify. Approvals (code_review, manual_review) and deployments are listed but never verify on their own.
 verified = every operation target covered by a passing observation; partial = some passing, not all covered; failed = any applicable failing observation; unverified = none.

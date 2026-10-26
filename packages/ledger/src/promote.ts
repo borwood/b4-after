@@ -130,7 +130,7 @@ export async function promoteChangeSet(repoDir: string, changeId: string, opts: 
 async function loadModelFromDsl(dsl: string) {
   const { mkdtemp, writeFile: wf, rm: rmr } = await import('node:fs/promises')
   const { tmpdir } = await import('node:os')
-  const dir = await mkdtemp(join(tmpdir(), 'like-b4-promote-'))
+  const dir = await mkdtemp(join(tmpdir(), 'b4-after-promote-'))
   try {
     await mkdir(join(dir, MODEL_DIR), { recursive: true })
     await wf(join(dir, MODEL_DIR, 'model.c4'), dsl, 'utf8')

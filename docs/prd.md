@@ -1,3 +1,9 @@
+> **About this document.** This is the original requirements document that b4-after was built
+> from, kept for design rationale. It predates the name: it calls the project the "Architecture
+> Change Ledger" and refers to implementation phases and acceptance tests (AT-nn, AR-nn) that the
+> source code still cites. The READMEs describe what exists today; where the two differ, the
+> READMEs are current.
+
 # Architecture Change Ledger — Agent-Facing Product Requirements Document
 
 **Status:** Draft for technical discovery and implementation planning  
@@ -330,7 +336,7 @@ Investigate these **before committing to a permanent storage or patching design*
 6. **[O] Historical semantics:** Git revision/time vs effective time; subtree membership at historical revisions; handling commits that revise a single change set.
 7. **[O] Schema validation:** Appropriate rule format for entity kinds, required properties, allowed relationship endpoint kinds, and cross-record integrity.
 8. **[O] Agent surface:** One companion MCP facade vs existing LikeC4 MCP plus a separate ledger MCP; scope, connection/setup friction, and default response budgets.
-9. **[P] Adoption:** *(2026-10-26.)* `initModelRepo` plus agent-authored inferred change sets, or `adoptExistingModel` for an existing LikeC4 model. Imported knowledge carries `inferred: true`, is promoted with a `pre-ledger` marker and no evidence, and therefore renders as unverified until evidence arrives. Procedure in `skills/like-b4-adopt`.
+9. **[P] Adoption:** *(2026-10-26.)* `initModelRepo` plus agent-authored inferred change sets, or `adoptExistingModel` for an existing LikeC4 model. Imported knowledge carries `inferred: true`, is promoted with a `pre-ledger` marker and no evidence, and therefore renders as unverified until evidence arrives. Procedure in `packages/mcp/skills/b4-after-adopt`.
 
 ## 12. Suggested implementation sequence
 

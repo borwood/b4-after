@@ -24,7 +24,7 @@ export interface InitOptions {
 
 export interface InitResult { sha: string; files: string[] }
 
-/** Create an empty model-data repository: git, a specification, an empty model, a landscape view. */
+/** Create an empty model repository: git, a specification, an empty model, a landscape view. */
 export async function initModelRepo(dir: string, opts: InitOptions): Promise<InitResult> {
   await mkdir(dir, { recursive: true })
   const git = new Git(dir)
@@ -211,7 +211,7 @@ const lastSegment = (fqn: string) => fqn.slice(fqn.lastIndexOf('.') + 1)
 function readme(name: string): string {
   return `# ${name} architecture
 
-Model-data repository for the Architecture Change Ledger.
+Architecture model repository managed by [b4-after](https://github.com/borwood/b4-after).
 
 - \`model/\` LikeC4 DSL, machine-generated. Written only by promotion.
 - \`changes/\` one YAML record per logical change set.

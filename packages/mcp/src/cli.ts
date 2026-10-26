@@ -1,24 +1,61 @@
-// like-b4-mcp [repoDir] [--actor <name>]   (stdio transport)
-// Env: LIKE_B4_REPO, LIKE_B4_ACTOR.
+// b4-after [repoDir] [--actor <name>]        start the MCP server (stdio) over a model repository
+// b4-after skill [--codex] [--to <dir>]      install the adoption skill into the current project
+// Env: B4_AFTER_REPO, B4_AFTER_ACTOR.
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { resolve } from 'node:path'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { RepoContext } from './context.js'
-import { createServer } from './server.js'
+import { createServer, SERVER_VERSION } from './server.js'
 
-const args = process.argv.slice(2)
-let repoDir = process.env.LIKE_B4_REPO ?? process.cwd()
-let actor = process.env.LIKE_B4_ACTOR
-for (let i = 0; i < args.length; i++) {
-  const a = args[i]!
-  if (a === '--actor') actor = args[++i]
-  else if (a === '-h' || a === '--help') {
-    process.stderr.write('usage: like-b4-mcp [repoDir] [--actor <name>]\n  repoDir: model-data repository (default: LIKE_B4_REPO or cwd)\n  --actor: default actor for writes (LIKE_B4_ACTOR)\n')
-    process.exit(0)
-  } else if (!a.startsWith('-')) repoDir = a
+const USAGE = `usage:
+  b4-after [repoDir] [--actor <name>]     MCP server (stdio) over a model repository
+  b4-after skill [--codex] [--to <dir>]   install the b4-after-adopt skill for your coding agent
+
+  repoDir   model repository: its own git repository with model/, changes/, evidence/.
+            Created on first use by the bootstrap tool. Default: $B4_AFTER_REPO or cwd.
+  --actor   default actor recorded on writes (env B4_AFTER_ACTOR); tools may override per call.
+  --codex   install the skill to .agents/skills/ (Codex) instead of .claude/skills/ (Claude Code).
+  --to      install the skill under this skills directory instead.
+`
+
+const SKILL_NAME = 'b4-after-adopt'
+
+async function installSkill(args: string[]): Promise<void> {
+  let target: string | undefined
+  let codex = false
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!
+    if (a === '--codex') codex = true
+    else if (a === '--claude') codex = false
+    else if (a === '--to') target = args[++i]
+    else { process.stderr.write(`unknown option ${a}\n${USAGE}`); process.exit(2) }
+  }
+  const skillsDir = resolve(target ?? (codex ? '.agents/skills' : '.claude/skills'))
+  const src = fileURLToPath(new URL(`../skills/${SKILL_NAME}/SKILL.md`, import.meta.url))
+  const dest = join(skillsDir, SKILL_NAME, 'SKILL.md')
+  await mkdir(join(skillsDir, SKILL_NAME), { recursive: true })
+  await writeFile(dest, await readFile(src, 'utf8'), 'utf8')
+  process.stdout.write(`installed ${SKILL_NAME} -> ${dest}\n`)
 }
 
-const ctx = new RepoContext(resolve(repoDir), { actor })
-const server = createServer(ctx)
-const transport = new StdioServerTransport()
-await server.connect(transport)
-process.stderr.write(`like-b4 mcp: ${ctx.repoDir}${actor ? ` (actor ${actor})` : ''}\n`)
+async function serve(args: string[]): Promise<void> {
+  let repoDir = process.env.B4_AFTER_REPO ?? process.cwd()
+  let actor = process.env.B4_AFTER_ACTOR
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!
+    if (a === '--actor') actor = args[++i]
+    else if (a.startsWith('-')) { process.stderr.write(`unknown option ${a}\n${USAGE}`); process.exit(2) }
+    else repoDir = a
+  }
+  const ctx = new RepoContext(resolve(repoDir), { actor })
+  const server = createServer(ctx)
+  await server.connect(new StdioServerTransport())
+  process.stderr.write(`b4-after ${SERVER_VERSION}: ${ctx.repoDir}${actor ? ` (actor ${actor})` : ''}\n`)
+}
+
+const argv = process.argv.slice(2)
+if (argv.includes('-h') || argv.includes('--help')) { process.stdout.write(USAGE); process.exit(0) }
+if (argv.includes('-v') || argv.includes('--version')) { process.stdout.write(`${SERVER_VERSION}\n`); process.exit(0) }
+if (argv[0] === 'skill') await installSkill(argv.slice(1))
+else await serve(argv)

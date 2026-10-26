@@ -16,7 +16,7 @@ export interface MaterializedWorkspace { dir: string; file: string; dispose(): P
 
 /** Write the projection to a temporary LikeC4 workspace. Caller disposes. */
 export async function materializeProjection(projection: Pick<Projection, 'data'>, dir?: string): Promise<MaterializedWorkspace> {
-  const target = dir ?? await mkdtemp(join(tmpdir(), 'like-b4-projection-'))
+  const target = dir ?? await mkdtemp(join(tmpdir(), 'b4-after-projection-'))
   await mkdir(target, { recursive: true })
   const file = join(target, 'model.c4')
   await writeFile(file, await projectionToDSL(projection.data), 'utf8')
@@ -43,7 +43,7 @@ export async function renderProjection(projection: Pick<Projection, 'data'>, opt
 
   const ws = await materializeProjection(projection)
   try {
-    const outDir = opts.outDir ?? await mkdtemp(join(tmpdir(), 'like-b4-render-'))
+    const outDir = opts.outDir ?? await mkdtemp(join(tmpdir(), 'b4-after-render-'))
     const require = createRequire(import.meta.url)
     const bin = join(dirname(require.resolve('likec4/package.json')), 'bin', 'likec4.mjs')
     const args = [bin, 'export', 'png', ws.dir, '-o', outDir, '--flat', '--max-attempts', '1']

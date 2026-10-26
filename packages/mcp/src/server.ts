@@ -1,4 +1,4 @@
-// The agent-facing MCP server. Fifteen tools, one-line descriptions, compact JSON results, bounded
+// The agent-facing MCP server. Seventeen tools, one-line descriptions, compact JSON results, bounded
 // defaults, help on demand. See help.ts for the documentation agents can pull in when they need it.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -10,11 +10,11 @@ import {
   overview, search, expand, elementDetail, resolveElement,
   Ledger, ProjectionError, ProposalRejected, PromotionRefused, LedgerError, EvidenceError,
   type StoryResult, type ValidationIssue,
-} from '@like-b4/ledger'
+} from '@borwood/b4-after-ledger'
 import { RepoContext } from './context.js'
 import { help, HELP_TOPICS } from './help.js'
 
-export const SERVER_NAME = 'like-b4'
+export const SERVER_NAME = 'b4-after'
 export const SERVER_VERSION = '0.1.0'
 
 const short = (sha: string | null | undefined) => (sha ? sha.slice(0, 7) : null)
@@ -80,6 +80,9 @@ export function createServer(ctx: RepoContext): McpServer {
     inputSchema: {},
   }, async () => guarded(async () => {
     const s = await ctx.snapshot()
+    if (!(await ctx.hasModel())) {
+      return ok(s.head, { ...overview(s), initialized: false, next: 'no model repository here yet: bootstrap mode=init name=<project> creates one (help adopt), or mode=adopt if model/ already holds LikeC4 sources' })
+    }
     return ok(s.head, overview(s))
   }))
 

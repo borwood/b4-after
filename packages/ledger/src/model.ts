@@ -1,4 +1,4 @@
-// Load the declared baseline (LikeC4 model) from a model-data repository, either from the working
+// Load the declared baseline (LikeC4 model) from a model repository, either from the working
 // tree or as committed at a git revision. The returned model is a computed LikeC4Model.
 //
 // Phase A finding: likec4.computedModel() returns one shared, mutable instance. We dispose the
@@ -43,7 +43,7 @@ export async function loadModel(repoDir: string, opts: LoadModelOptions = {}): P
   const sha = await git.revParse(opts.revision)
   const files = await git.lsTree(sha, modelDir)
   if (files.length === 0) throw new Error(`no files under ${modelDir}/ at revision ${opts.revision}`)
-  const tmp = await mkdtemp(join(tmpdir(), 'like-b4-model-'))
+  const tmp = await mkdtemp(join(tmpdir(), 'b4-after-model-'))
   try {
     for (const f of files) {
       const content = await git.show(sha, f)
@@ -106,7 +106,7 @@ export async function generateDSL(data: ParsedModelData): Promise<string> {
 /** Validate parsed data by generating DSL and loading it with the real LikeC4 parser. Returns the DSL. */
 export async function roundTripCheck(data: ParsedModelData): Promise<{ dsl: string; errors: string[] }> {
   const dsl = await generateDSL(data)
-  const tmp = await mkdtemp(join(tmpdir(), 'like-b4-check-'))
+  const tmp = await mkdtemp(join(tmpdir(), 'b4-after-check-'))
   try {
     await writeFile(join(tmp, 'model.c4'), dsl, 'utf8')
     const loaded = await readWorkspace(tmp, 'worktree', null, false)

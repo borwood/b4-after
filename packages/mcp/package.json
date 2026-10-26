@@ -1,21 +1,63 @@
 {
-  "name": "@like-b4/mcp",
+  "name": "@borwood/b4-after",
   "version": "0.1.0",
-  "private": true,
+  "description": "MCP server and CLI for b4-after: lets coding agents model a system as C4 (LikeC4), propose and review changes to it, promote accepted changes, and record the evidence that verifies them",
+  "license": "MIT",
+  "author": "borwood",
+  "homepage": "https://github.com/borwood/b4-after#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/borwood/b4-after.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/borwood/b4-after/issues"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "architecture",
+    "c4",
+    "likec4",
+    "architecture-as-code",
+    "change-ledger",
+    "ai-agents",
+    "claude-code",
+    "codex"
+  ],
   "type": "module",
-  "description": "Agent-facing MCP server over a LikeC4 model-data repository and its change ledger",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "bin": {
-    "like-b4-mcp": "./bin/like-b4-mcp.mjs"
+    "b4-after": "./bin/b4-after.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=22.22"
   },
   "dependencies": {
-    "@like-b4/ledger": "0.1.0",
+    "@borwood/b4-after-ledger": "0.1.0",
     "@modelcontextprotocol/sdk": "1.32.2",
     "zod": "4.6.7"
   },

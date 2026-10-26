@@ -1,8 +1,10 @@
 // Per-repository context for the server: cached snapshots keyed by what can change them, and a
 // cross-process write lock so several agents (each with their own server process) serialise writes.
+import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Git, IdentityRegistry, Ledger, loadModel, CHANGES_DIR, EVIDENCE_DIR, MODEL_DIR, type Snapshot } from '@like-b4/ledger'
+import { Git, IdentityRegistry, Ledger, loadModel, CHANGES_DIR, EVIDENCE_DIR, MODEL_DIR, type Snapshot } from '@borwood/b4-after-ledger'
 
 export interface ContextOptions {
   /** Default actor for writes when a tool call does not name one. */
@@ -22,6 +24,11 @@ export class RepoContext {
 
   async head(): Promise<string | null> {
     return (await Git.isRepo(this.repoDir)) ? this.git.headSha() : null
+  }
+
+  /** Whether the directory holds LikeC4 sources under model/ (false before bootstrap init). */
+  async hasModel(): Promise<boolean> {
+    try { return (await readdir(join(this.repoDir, MODEL_DIR))).some(f => /\.c4$/i.test(f)) } catch { return false }
   }
 
   /** Current working-tree snapshot (model, registry, ledger). Recomputed only when HEAD or the data files change. */
@@ -59,10 +66,14 @@ export class RepoContext {
 
   /**
    * Serialise writes across processes with an atomic mkdir lock. The lock lives under .git so it
-   * is never committed. Stale locks (crashed holder) are broken after `lockStaleMs`.
+   * is never committed; before the repository exists (bootstrap init) it lives in the OS temp
+   * directory, keyed by path, so it cannot end up inside the work tree about to be created.
+   * Stale locks (crashed holder) are broken after `lockStaleMs`.
    */
   async withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
-    const lockDir = join(this.repoDir, (await Git.isRepo(this.repoDir)) ? '.git' : '.', '.like-b4.lock')
+    const lockDir = (await Git.isRepo(this.repoDir))
+      ? join(this.repoDir, '.git', '.b4-after.lock')
+      : join(tmpdir(), `b4-after-${createHash('sha1').update(this.repoDir).digest('hex').slice(0, 12)}.lock`)
     const timeout = this.options.lockTimeoutMs ?? 30_000
     const stale = this.options.lockStaleMs ?? 120_000
     const started = Date.now()

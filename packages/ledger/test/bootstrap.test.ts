@@ -14,11 +14,11 @@ import { IdentityRegistry } from '../src/identity.js'
 import { Git } from '../src/git.js'
 
 let root: string
-beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'like-b4-boot-')) })
+beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'b4-after-boot-')) })
 afterAll(async () => { await rm(root, { recursive: true, force: true }) })
 
 describe('fresh adoption: init, then inferred change sets through the normal path', () => {
-  it('initialises an empty, valid model-data repository', async () => {
+  it('initialises an empty, valid model repository', async () => {
     const dir = join(root, 'fresh')
     const r = await initModelRepo(dir, { name: 'Shop', actor: 'adopter', tags: ['external'], date: '2026-06-01T00:00:00Z' })
     expect(r.sha).toMatch(/^[0-9a-f]{40}$/)

@@ -1,18 +1,20 @@
 ---
-name: like-b4-adopt
-description: Bring an existing codebase into the Architecture Change Ledger (like-b4) as an honest, inferred, unverified baseline. Use when asked to adopt, onboard, bootstrap, or "model the architecture of" a repository with like-b4, or when a model-data repo is empty.
+name: b4-after-adopt
+description: Bring an existing codebase into b4-after as an honest, inferred, unverified C4 baseline. Use when asked to adopt, onboard, bootstrap, or "model the architecture of" a repository with b4-after, or when the b4-after overview reports the model repository is not initialised yet.
 ---
 
-# Adopt a codebase into like-b4
+# Adopt a codebase into b4-after
 
 You produce a declared architecture that is **inferred**, not asserted. Every element you record
 will show as `unverified` until evidence is recorded. Prefer fewer, truer elements over coverage.
 
 ## Preconditions
 
-- The `like-b4` MCP server is connected and pointed at the model-data repository (not the codebase).
-  If unsure, call `overview`; if it errors with no model, you are on path A.
-- You have an actor name for this session (pass `actor` on every write).
+- The `b4-after` MCP server is connected and pointed at the model repository (not the codebase).
+  Call `overview`: `initialized: false` means you are on path A; a model with no change sets
+  means path B.
+- You have an actor name for this session (pass `actor` on every write unless the server was
+  started with `--actor`).
 
 ## Path A: no model yet
 
@@ -51,3 +53,10 @@ Safe to repeat. Then `qualify` and report.
 - Do not record evidence during adoption. Inferred means unverified; that is the point.
 - If the specification lacks a kind you need, stop and say so; kinds are fixed at init.
 - Report: roots recorded, change set ids, counts from `qualify`, and anything you were unsure about.
+
+## Afterwards
+
+Any intended change to the architecture goes through the same server: draft a change set from the
+requirement, `validate`, `project render=dsl` to inspect it, `propose`, have it accepted, `promote`.
+Record evidence as implementation lands and `qualify` turns the baseline green. `story` answers
+what happened to any entity and why.

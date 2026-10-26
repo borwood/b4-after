@@ -1,3 +1,8 @@
+> **About this document.** Notes from evaluating LikeC4 1.60.0 as the engine behind b4-after,
+> written before the name was chosen. The probe scripts, sample model, and rendered samples it
+> refers to were removed from the tree when the repository went public; they are in git history
+> at commit `cab57b0` under `spikes/phase-a/`.
+
 # Phase A findings: LikeC4 1.60.0 feasibility
 
 **Date:** 2026-10-25

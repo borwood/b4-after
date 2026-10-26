@@ -5,7 +5,7 @@ import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Git } from '@like-b4/ledger'
+import { Git } from '@borwood/b4-after-ledger'
 import { createServer } from '../src/server.js'
 import { RepoContext } from '../src/context.js'
 
@@ -35,7 +35,7 @@ const call = async (cl: Client, name: string, args: Record<string, unknown> = {}
 }
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'like-b4-mcp-'))
+  dir = await mkdtemp(join(tmpdir(), 'b4-after-'))
   git = new Git(dir)
   await git.exec(['init', '-q', '-b', 'main'])
   await git.exec(['config', 'user.name', 'fixture'])
@@ -221,20 +221,34 @@ describe('writes and concurrency', () => {
     expect((await call(client, 'releases', { detail: 'baseline' })).json.code).toBe('VALIDATION')
   })
 
-  it('bootstrap init on an empty directory, then adopt is a no-op there', async () => {
-    const fresh = await mkdtemp(join(tmpdir(), 'like-b4-mcp-init-'))
+  it('bootstrap init on a directory that does not exist yet, nested in another repository', async () => {
+    // The common dogfooding layout: <code repo>/architecture, before anything is there.
+    const outer = await mkdtemp(join(tmpdir(), 'b4-after-outer-'))
+    const fresh = join(outer, 'architecture')
     try {
+      const og = new Git(outer)
+      await og.exec(['init', '-q', '-b', 'main'])
+      await og.exec(['config', 'user.name', 'outer']); await og.exec(['config', 'user.email', 'outer@example.test'])
+      await writeFile(join(outer, 'README.md'), 'code\n'); await og.add(['.']); await og.commit('code\n')
       const c = new RepoContext(fresh, { actor: 'adopter' })
       const server = createServer(c)
       const [ct, st] = InMemoryTransport.createLinkedPair()
       await server.connect(st)
       const cl = new Client({ name: 't', version: '0' }); await cl.connect(ct)
+      const empty = await call(cl, 'overview')
+      expect(empty.json).toMatchObject({ ok: true, head: null, initialized: false })
+      expect(empty.json.next).toMatch(/bootstrap mode=init/)
       const noName = await call(cl, 'bootstrap', { mode: 'init' })
       expect(noName.json.code).toBe('VALIDATION')
       const init = await call(cl, 'bootstrap', { mode: 'init', name: 'Shop', tags: ['external'] })
       expect(init.json).toMatchObject({ ok: true, mode: 'init' })
       expect(init.json.next).toMatch(/inferred/)
+      // Its own repository, not a subtree of the outer one; nothing from the lock ended up in it.
+      expect(await Git.isRepo(fresh)).toBe(true)
+      expect((await og.exec(['status', '--porcelain'])).trim()).toBe('?? architecture/')
+      expect(await new Git(fresh).exec(['ls-files'])).not.toMatch(/lock/)
       const ov = await call(cl, 'overview')
+      expect(ov.json.initialized).toBeUndefined()
       expect(ov.json.model.elements).toBe(0)
       expect(ov.json.model.tags).toEqual(['external'])
       const adopt = await call(cl, 'bootstrap', { mode: 'adopt' })
@@ -254,7 +268,7 @@ describe('writes and concurrency', () => {
       expect(adoptHelp.text).toMatch(/Two paths/)
       await cl.close()
     } finally {
-      await rm(fresh, { recursive: true, force: true })
+      await rm(outer, { recursive: true, force: true })
     }
   })
 

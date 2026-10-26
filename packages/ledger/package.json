@@ -1,20 +1,55 @@
 {
-  "name": "@like-b4/ledger",
+  "name": "@borwood/b4-after-ledger",
   "version": "0.1.0",
-  "private": true,
+  "description": "Library behind b4-after: change sets, stable identity, git provenance, candidate projections, governed promotion, evidence-derived verification, and storyOf() over a LikeC4 model repository",
+  "license": "MIT",
+  "author": "borwood",
+  "homepage": "https://github.com/borwood/b4-after#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/borwood/b4-after.git",
+    "directory": "packages/ledger"
+  },
+  "bugs": {
+    "url": "https://github.com/borwood/b4-after/issues"
+  },
+  "keywords": [
+    "architecture",
+    "c4",
+    "likec4",
+    "architecture-as-code",
+    "change-ledger",
+    "ai-agents",
+    "mcp"
+  ],
   "type": "module",
-  "description": "Change-set ledger, stable identity, Git provenance, and storyOf() over a LikeC4 model-data repository",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=22.22"
   },
   "dependencies": {
+    "@likec4/core": "1.60.0",
     "likec4": "1.60.0",
     "yaml": "2.9.1",
     "zod": "4.6.7"

@@ -58,7 +58,7 @@ export interface ProjectOptions {
   allowPromoted?: boolean
 }
 
-/** Build a candidate projection from a model-data repository. */
+/** Build a candidate projection from a model repository. */
 export async function projectModel(repoDir: string, opts: ProjectOptions): Promise<Projection> {
   const ledger = opts.ledger ?? await Ledger.load(repoDir, opts.baselineRevision ? { revision: opts.baselineRevision } : {})
   const loaded = await loadModel(repoDir, opts.baselineRevision ? { revision: opts.baselineRevision } : {})

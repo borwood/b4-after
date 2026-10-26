@@ -10,7 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       // Run against the ledger sources so tests do not need a build step.
-      '@like-b4/ledger': new URL('../ledger/src/index.ts', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+      '@borwood/b4-after-ledger': new URL('../ledger/src/index.ts', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
     },
   },
 })
