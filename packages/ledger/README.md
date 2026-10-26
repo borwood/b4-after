@@ -82,7 +82,7 @@ Phases C and D. The Phase A spike shows the mechanics each will use.
 ## Development
 
 ```
-npm install --legacy-peer-deps   # npm 11's resolver crashes on LikeC4's peer graph without this
+npm install                      # npm >= 12; npm 11.5 crashed resolving LikeC4's peer graph
 npm run typecheck -w packages/ledger
 npm test -w packages/ledger
 ```
