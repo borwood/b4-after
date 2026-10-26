@@ -40,6 +40,8 @@ export const AddElement = z.strictObject({
   name: localName,
   kind: z.string().min(1),
   ...ElementProps.shape,
+  /** Lineage: entities this one was split or merged from. History only; no architectural edge. */
+  derived_from: z.array(stableId).optional(),
 })
 export const UpdateElement = z.strictObject({ op: z.literal('update_element'), id: stableId, set: ElementProps })
 export const MoveElement = z.strictObject({
@@ -48,7 +50,12 @@ export const MoveElement = z.strictObject({
   parent: stableId.nullable(),
   name: localName.optional(),
 })
-export const RemoveElement = z.strictObject({ op: z.literal('remove_element'), id: stableId })
+export const RemoveElement = z.strictObject({
+  op: z.literal('remove_element'),
+  id: stableId,
+  /** Lineage: entities that take over this one's role. History only; no architectural edge. */
+  succeeded_by: z.array(stableId).optional(),
+})
 export const AddRelationship = z.strictObject({
   op: z.literal('add_relationship'),
   id: stableId,

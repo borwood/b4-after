@@ -122,6 +122,10 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
         }
         added.set(op.id, { fqn, kind: op.kind })
         mutated.add(op.id)
+        for (const [j, d] of (op.derived_from ?? []).entries()) {
+          if (d === op.id) err('E_SELF_LINEAGE', `${p}/derived_from/${j}`, `${op.id} cannot derive from itself`)
+          else if (!reg.get(d) && !added.has(d)) err('E_UNKNOWN_ENTITY', `${p}/derived_from/${j}`, `lineage source ${d} is not known`)
+        }
         break
       }
       case 'update_element': {
@@ -147,6 +151,10 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
         if (requireElement(op.id, `${p}/id`, 'element')) {
           cascadeRemove(elementFqn(op.id)!)
           removed.add(op.id); mutated.add(op.id)
+        }
+        for (const [j, s] of (op.succeeded_by ?? []).entries()) {
+          if (s === op.id) err('E_SELF_LINEAGE', `${p}/succeeded_by/${j}`, `${op.id} cannot succeed itself`)
+          else if (!reg.get(s) && !added.has(s)) warn('W_UNKNOWN_SUCCESSOR', `${p}/succeeded_by/${j}`, `successor ${s} is not known yet; add it in this change set or earlier`)
         }
         break
       }

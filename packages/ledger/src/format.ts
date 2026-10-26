@@ -13,7 +13,9 @@ export function formatStory(story: StoryResult): string {
   const snap = story.snapshot.source === 'revision'
     ? `as recorded at ${story.snapshot.revision?.slice(0, 7) ?? 'nothing'}${story.snapshot.before ? ` (before ${story.snapshot.before})` : ''}`
     : `working tree${story.snapshot.revision ? ` at ${story.snapshot.revision.slice(0, 7)}` : ''}`
-  const scope = s.membership === 'descendants_at_snapshot' ? `subtree of ${s.members.length} entities` : 'entity only'
+  const scope = s.membership === 'descendants_at_snapshot' ? `subtree of ${s.members.length} entities`
+    : s.membership === 'ever_recorded' ? `subtree of ${s.members.length} entities incl. ${s.historicalMembers.length} historical`
+    : 'entity only'
   lines.push(`${snap}; ${scope}; ${story.total} change set${story.total === 1 ? '' : 's'}${story.truncated ? ` (showing ${story.entries.length}, truncated)` : ''}.`)
   if (story.warnings.length) lines.push(...story.warnings.map(w => `> ${w}`))
   lines.push('')

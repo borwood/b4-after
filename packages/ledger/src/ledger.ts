@@ -14,16 +14,19 @@ export type ParticipationRole =
   | 'relationship_added' | 'relationship_updated' | 'relationship_removed'
   | 'relationship_source' | 'relationship_target'
   | 'relates_to'
+  | 'derived_from' | 'succeeded_by'
 
 export interface Participation {
   entityId: string
   entityType: 'element' | 'relationship'
   role: ParticipationRole
-  /** How the entity got involved. Operations and relationship endpoints mutate or touch shape; references never do. */
-  via: 'operation' | 'relationship_endpoint' | 'reference'
+  /** How the entity got involved. Operations and relationship endpoints mutate or touch shape; references and lineage never do. */
+  via: 'operation' | 'relationship_endpoint' | 'reference' | 'lineage'
   op?: Operation['op']
   /** For relationship endpoints: the relationship's stable id. */
   relationshipId?: string
+  /** For lineage: the entity in the operation this pointer belongs to (the new element for derived_from, the removed one for succeeded_by). */
+  lineageOf?: string
   reason?: string
 }
 
@@ -80,10 +83,16 @@ export function participantsOf(cs: ChangeSetT): Participation[] {
   const out: Participation[] = []
   for (const op of cs.operations) {
     switch (op.op) {
-      case 'add_element': out.push({ entityId: op.id, entityType: 'element', role: 'added', via: 'operation', op: op.op }); break
+      case 'add_element':
+        out.push({ entityId: op.id, entityType: 'element', role: 'added', via: 'operation', op: op.op })
+        for (const d of op.derived_from ?? []) out.push({ entityId: d, entityType: 'element', role: 'derived_from', via: 'lineage', op: op.op, lineageOf: op.id })
+        break
       case 'update_element': out.push({ entityId: op.id, entityType: 'element', role: 'updated', via: 'operation', op: op.op }); break
       case 'move_element': out.push({ entityId: op.id, entityType: 'element', role: 'moved', via: 'operation', op: op.op }); break
-      case 'remove_element': out.push({ entityId: op.id, entityType: 'element', role: 'removed', via: 'operation', op: op.op }); break
+      case 'remove_element':
+        out.push({ entityId: op.id, entityType: 'element', role: 'removed', via: 'operation', op: op.op })
+        for (const s of op.succeeded_by ?? []) out.push({ entityId: s, entityType: 'element', role: 'succeeded_by', via: 'lineage', op: op.op, lineageOf: op.id })
+        break
       case 'add_relationship':
         out.push({ entityId: op.id, entityType: 'relationship', role: 'relationship_added', via: 'operation', op: op.op })
         out.push({ entityId: op.from, entityType: 'element', role: 'relationship_source', via: 'relationship_endpoint', op: op.op, relationshipId: op.id })

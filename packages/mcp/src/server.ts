@@ -42,7 +42,7 @@ function toFailure(e: unknown): CallToolResult {
 
 function storySummary(r: StoryResult) {
   return {
-    subject: { id: r.subject.resolved?.stableId ?? r.subject.requested, fqn: r.subject.resolved?.fqn ?? null, members: r.subject.members.length, membership: r.subject.membership },
+    subject: { id: r.subject.resolved?.stableId ?? r.subject.requested, fqn: r.subject.resolved?.fqn ?? null, members: r.subject.members.length, membership: r.subject.membership, ...(r.subject.historicalMembers.length ? { historical: r.subject.historicalMembers } : {}) },
     snapshot: { source: r.snapshot.source, revision: short(r.snapshot.revision), ...(r.snapshot.before ? { before: r.snapshot.before } : {}) },
     total: r.total, truncated: r.truncated, ...(r.nextCursor ? { cursor: r.nextCursor } : {}),
     entries: r.entries.map(e => ({
@@ -115,7 +115,8 @@ export function createServer(ctx: RepoContext): McpServer {
   server.registerTool('story', {
     description: 'Chronological change sets involving an entity or subtree, with roles and sources (paged)',
     inputSchema: {
-      entity: z.string(), subtree: z.boolean().optional(), revision: z.string().optional(), before: z.string().optional(),
+      entity: z.string(), subtree: z.boolean().optional(), membership: z.enum(['current', 'ever']).optional(),
+      revision: z.string().optional(), before: z.string().optional(),
       environment: z.string().optional(), limit: z.number().int().optional(), cursor: z.string().optional(),
       detail: z.enum(['summary', 'full']).optional(),
     },
@@ -123,7 +124,7 @@ export function createServer(ctx: RepoContext): McpServer {
     const historical = !!(a.revision || a.before)
     const s = historical ? null : await ctx.snapshot()
     const r = await storyOf(ctx.repoDir, {
-      entity: a.entity, subtree: a.subtree, revision: a.revision, before: a.before, environment: a.environment, limit: a.limit, cursor: a.cursor,
+      entity: a.entity, subtree: a.subtree, membership: a.membership, revision: a.revision, before: a.before, environment: a.environment, limit: a.limit, cursor: a.cursor,
       include: a.detail === 'full' ? ['operations', 'references', 'sources', 'commits', 'evidence'] : ['sources'],
     }, s ? { ledger: s.ledger, registry: s.registry } : {})
     return ok(s?.head ?? (await ctx.head()), a.detail === 'full' ? { story: r } : storySummary(r))

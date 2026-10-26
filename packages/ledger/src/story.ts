@@ -12,6 +12,12 @@ export interface StoryQuery {
   entity: string
   /** Include change sets touching any current descendant of the entity (AT-09). */
   subtree?: boolean
+  /**
+   * Subtree membership: `current` (descendants at the snapshot, default) or `ever` (also every
+   * entity a promoted change set ever added or moved under the subtree, even if since moved out
+   * or removed). `ever` is derived from the ledger, so pre-ledger moves are not seen.
+   */
+  membership?: 'current' | 'ever'
   /** Reconstruct ledger and model as recorded at this git revision (AT-04). */
   revision?: string
   /** ISO date-time cutoff: resolves to the latest commit at or before it. */
@@ -65,8 +71,10 @@ export interface StoryResult {
      * only by id (update/remove) still count as touching its endpoints (PRD 7.1).
      */
     attachedRelationships: string[]
-    /** How subtree members were determined. Phase B supports current-at-snapshot only (PRD 7.2 [O]). */
-    membership: 'target_only' | 'descendants_at_snapshot'
+    /** How subtree members were determined (PRD 7.2). */
+    membership: 'target_only' | 'descendants_at_snapshot' | 'ever_recorded'
+    /** With membership `ever`: entities included from ledger history that are not current descendants. */
+    historicalMembers: string[]
     /** Descendants that lack a stable id and therefore cannot appear in the ledger. */
     unidentifiedDescendants: number
   }
@@ -130,14 +138,25 @@ export async function storyOf(repoDir: string, q: StoryQuery, deps: StoryDeps = 
   let members = [stableId]
   let membership: StoryResult['subject']['membership'] = 'target_only'
   let unidentifiedDescendants = 0
+  const historicalMembers: string[] = []
+  const historicalRelationships: string[] = []
   if (q.subtree) {
     if (rec?.type === 'element' && registry) {
       const d = registry.descendantsOf(rec.stableId)
       members = [stableId, ...d.ids]
       unidentifiedDescendants = d.unidentified
       membership = 'descendants_at_snapshot'
-    } else {
+    } else if (q.membership !== 'ever') {
       warnings.push('subtree requested but the entity is not a resolvable element at this snapshot; only the entity itself was used')
+    }
+    if (q.membership === 'ever') {
+      const current = new Set(members)
+      const ever = everUnder(ledger, current)
+      for (const id of ever.elements) if (!current.has(id)) historicalMembers.push(id)
+      members = [...members, ...historicalMembers]
+      historicalRelationships.push(...ever.relationships)
+      membership = 'ever_recorded'
+      if (!rec) warnings.push('entity is not in the model at this snapshot; membership derived from ledger history only')
     }
   }
   const attachedRelationships: string[] = []
@@ -149,6 +168,7 @@ export async function storyOf(repoDir: string, q: StoryQuery, deps: StoryDeps = 
       }
     }
   }
+  for (const r of historicalRelationships) if (!attachedRelationships.includes(r)) attachedRelationships.push(r)
   const memberSet = new Set([...members, ...attachedRelationships])
 
   // Collect, dedupe, sort.
@@ -160,7 +180,7 @@ export async function storyOf(repoDir: string, q: StoryQuery, deps: StoryDeps = 
 
   const entries = page.map(r => toEntry(r, memberSet, include, q.environment))
   return {
-    subject: { requested: q.entity, resolved, members, attachedRelationships, membership, unidentifiedDescendants },
+    subject: { requested: q.entity, resolved, members, attachedRelationships, membership, historicalMembers, unidentifiedDescendants },
     snapshot: {
       source: ledger.snapshot.source,
       revision: ledger.snapshot.revision,
@@ -210,6 +230,30 @@ function toEntry(r: ChangeRecord, members: Set<string>, include: Set<StoryInclud
   }
 }
 
+/**
+ * Every entity a promoted change set ever placed under one of `roots` (by add or move), closed
+ * transitively: something added under an entity that was itself added under a root counts too.
+ */
+function everUnder(ledger: Ledger, roots: Set<string>): { elements: Set<string>; relationships: string[] } {
+  const members = new Set(roots)
+  const placements: { id: string; parent: string | null }[] = []
+  const relations: { id: string; from: string; to: string }[] = []
+  for (const r of ledger.all()) {
+    if (!r.changeSet.promotion) continue
+    for (const op of r.changeSet.operations) {
+      if (op.op === 'add_element' || op.op === 'move_element') placements.push({ id: op.id, parent: op.parent })
+      if (op.op === 'add_relationship') relations.push({ id: op.id, from: op.from, to: op.to })
+    }
+  }
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const p of placements) if (p.parent && members.has(p.parent) && !members.has(p.id)) { members.add(p.id); grew = true }
+  }
+  const relationships = relations.filter(r => members.has(r.from) || members.has(r.to)).map(r => r.id)
+  return { elements: members, relationships: [...new Set(relationships)] }
+}
+
 function deriveVerificationFor(r: ChangeRecord, environment: string): Verification {
   return deriveVerification(r.changeSet, r.evidence, { environment })
 }
@@ -217,7 +261,7 @@ function deriveVerificationFor(r: ChangeRecord, environment: string): Verificati
 function dedupeParticipants(ps: Participation[]): Participation[] {
   const seen = new Set<string>()
   return ps.filter(p => {
-    const key = `${p.entityId}|${p.role}|${p.relationshipId ?? ''}`
+    const key = `${p.entityId}|${p.role}|${p.relationshipId ?? ''}|${p.lineageOf ?? ''}`
     if (seen.has(key)) return false
     seen.add(key)
     return true

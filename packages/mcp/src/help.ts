@@ -44,10 +44,10 @@ references = "this entity is relevant" with NO change to it and NO architectural
 Unknown fields are rejected. Verification is never a field: it is derived from evidence.`,
 
   operations: `Targets are stable ids. Order matters within a change set (later ops see earlier ones).
-- add_element { id, parent: <stable id>|null, name: <LikeC4 local name>, kind, title?, description?, technology?, tags?, metadata? }
+- add_element { id, parent: <stable id>|null, name: <LikeC4 local name>, kind, title?, description?, technology?, tags?, metadata?, derived_from?: [ids] }
 - update_element { id, set: { title?, description?, technology?, tags?, metadata? } }  (merge: metadata keys patched, tags replaced, null clears)
 - move_element { id, parent: <stable id>|null, name? }
-- remove_element { id }  (cascades to descendants, attached relationships, view predicates)
+- remove_element { id, succeeded_by?: [ids] }  (cascades to descendants, attached relationships, view predicates)
 - add_relationship { id, from, to, kind?, title?, description?, technology?, tags?, metadata? }
 - update_relationship { id, set: {...} }
 - remove_relationship { id }
@@ -79,7 +79,8 @@ project(changes=[..]): candidate on top of the baseline, nothing written. Depend
 search(query, kinds?, tags?, limit<=50): ranked by id/fqn/title match.
 expand(entity, depth<=5, relationships=direct|none, max_nodes<=200): descendants + relationships touching the included set.
 element(entity, qualify?): full details, incoming/outgoing, views, change sets touching it.
-story(entity, subtree?, revision?, before?, environment?, limit<=100, cursor?, detail=summary|full): change sets involving the entity, oldest first, one hop of context. before=ISO time resolves to the last commit at or before it. subtree uses current descendants at that snapshot.
+story(entity, subtree?, membership=current|ever, revision?, before?, environment?, limit<=100, cursor?, detail=summary|full): change sets involving the entity, oldest first, one hop of context. before=ISO time resolves to the last commit at or before it. subtree uses current descendants at that snapshot; membership=ever also includes everything a promoted change set ever added or moved under it (ledger-derived; pre-ledger moves are not seen).
+Lineage: add_element may carry derived_from=[ids] and remove_element succeeded_by=[ids] (splits, merges, replacements). Story shows these as roles derived_from / succeeded_by via lineage; they are history only, never architectural edges.
 changes(disposition?, promoted?, entity?, limit?): list change sets. change(change_id, revision?, include_evidence?): one change set with commits and derived verification.
 project(changes, baseline_revision?, highlight?, render=none|dsl|png, out_dir?): candidate diff; png writes files and returns paths.
 qualify(environment?, revision?, render?, detail=counts|full): committed baseline annotated per entity with derived verification.`,
