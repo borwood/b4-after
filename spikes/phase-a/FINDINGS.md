@@ -17,7 +17,7 @@
 | Operation | Path that works | Notes |
 |---|---|---|
 | `add_element` | `likec4.toBuilder().model(...).toLikeC4Model()` | Returns a new computed model. Baseline untouched (verified byte-identical before and after). |
-| `add_relationship` | same | **LikeC4 forbids relationships between an element and its own ancestor or descendant** ("Cannot create relationship between elements in the same hierarchy"). The PRD example `billing-api -> billing-retry-worker` where the worker is a child of the API is invalid. Express it between siblings or restructure. |
+| `add_relationship` | same | LikeC4 forbids relationships between an element and its own ancestor or descendant ("Cannot create relationship between elements in the same hierarchy"). The spike's first attempt nested the retry worker under the API and hit this. The PRD example is fine: it places the worker under billing-service as a sibling of billing-api. Validation should surface this rule with a clear message. |
 | `update_element` | re-declare same FQN and kind in the builder | **Replace, not merge.** Omitted title, technology, and metadata are lost. Our facade must read the existing element and pass back everything it is not changing. Kind change throws, which is good. |
 | `remove_element` | data surgery on `builder.build()` then `LikeC4Model.create(computeParsedModelData(data))` | No builder API for removal. Delete the key from `data.elements` and every relation whose `source.model`/`target.model` is the element or a descendant. Views recompute correctly; the removed node simply disappears. |
 | `move_element` | same data surgery, rewriting FQN keys, element ids, relation endpoints | Works. View rules that named the old FQN (`include billing.billing_api.*`) silently stop matching the moved element. Our move operation must also rewrite view predicates or warn. |
@@ -64,7 +64,7 @@
 ## Impact on the PRD
 
 1. **Relationship identity (5.1, 5.4 [O]):** decided by evidence. Carry an explicit `stable_id` in relationship metadata. LikeC4's hash is positional for parallel edges.
-2. **Hierarchy rule:** relationships cannot cross an ancestor/descendant boundary. Change-set validation must reject these before LikeC4 does, with a clearer message, and the PRD example should be corrected.
+2. **Hierarchy rule:** relationships cannot connect an element to its own ancestor or descendant. Not a PRD issue; change-set validation should report it clearly rather than surfacing LikeC4's error.
 3. **Baseline writes (6.3 [O], 9 [P]):** model source is agent-written only, so the lossy round-trip is not a constraint. The baseline is generated DSL; promotion regenerates it from parsed data. Struck from the PRD: hand-edited model source, source-preserving writes, and formatting preservation.
 4. **Shared mutable model:** facade design constraint, not a PRD change. Record it in the Phase B design.
 5. **Docs drift:** `computedModel()` async, `generate` export name, generator colour bug. Pin `likec4` to an exact version and keep these probes as regression checks.

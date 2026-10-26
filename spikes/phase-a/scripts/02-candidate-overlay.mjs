@@ -18,8 +18,8 @@ try {
         metadata: { stable_id: 'ent-billing-retry-worker' },
       }),
       // NOTE: LikeC4 forbids relationships between an element and its own ancestor/descendant
-      // ("Cannot create relationship between elements in the same hierarchy"), so the PRD's
-      // billing-api -> retry-worker example must be expressed between siblings.
+      // ("Cannot create relationship between elements in the same hierarchy"). This spike nests the
+      // worker under billing_api, so the relationship must come from a sibling (charges).
       rel('billing.billing_api.charges', 'billing.billing_api.retry_worker', {
         kind: 'publishes_to', title: 'enqueues retries', tags: ['candidate'],
       }),
