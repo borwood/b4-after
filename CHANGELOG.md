@@ -1,67 +1,90 @@
 # Changelog
 
-All notable changes to b4-after. Both packages, `@borwood/b4-after` (MCP server and CLI) and
-`@borwood/b4-after-ledger` (library), are versioned together. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
-[Semantic Versioning](https://semver.org/) and will break before 1.0.
+What changes for you when you upgrade. Both packages, `@borwood/b4-after` (the MCP server and
+CLI) and `@borwood/b4-after-ledger` (the library), are released together under one version.
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
+[Semantic Versioning](https://semver.org/) and will break before 1.0; breaking changes are marked.
 
 ## [Unreleased]
 
 ## [0.2.0] - 2026-10-27
 
-### Changed
+### Upgrading
 
-- **The committed model is faithful to what exists.** Promotion applies additions and moves and
-  tags them (`b4-intended`, `b4-pending-move`); it defers updates and removals of existing
-  entities (`b4-pending-update`, `b4-retiring`) until evidence verifies them. Operations on an
-  entity that is itself still intended apply at once, so a plan promoted before building can be
-  revised or dropped without waiting on evidence. Every entity carries `b4_change`, `b4_status`
-  and, when operations are deferred, `b4_pending`. Inferred change sets apply at once with no flag.
-- `implementation` is derived from evidence (`not_started`, `in_progress`, `implemented`) and no
-  longer recorded on change sets. The field is still accepted in input, dropped, and warned about
-  (`W_DEPRECATED_FIELD`). `ChangeRecord.implementation` and the commit trailer carry the derived value.
-- `validate` and `propose` project a change set's unpromoted `depends_on` (transitively) onto the
-  baseline before validating, and report `projected_dependencies`. Promotion still requires
-  dependencies promoted first. (#2)
-- `model/` now holds `model.c4` and a generated `views.c4`; both are rewritten by promotion,
-  reconciliation and adoption. Hand-written view files under `model/` are removed on the next write.
-- `project` and `qualify` accept `render=html` as well as `dsl` and `png`; `materializeProjection`
-  writes both model files. `generateDSL` strips views; `roundTripCheck` is gone in favour of
-  `generateAndCheck`.
-- Search, expand and element rows carry `pending: [...]` whenever an entity is not exactly as drawn.
-  `overview.model.tags` excludes reserved tags.
-- Promotion refusals truncate LikeC4 parser errors to the first few, cut at the expected-token list. (#1)
-- The `b4-after skill` command installs every shipped skill (or the named ones) instead of only the
-  adoption skill.
+- Run the `reconcile` tool once on each existing model repository. It rewrites `model/model.c4`
+  with the new status tags and metadata and generates `model/views.c4`. Until then the model has no
+  status information and the As-is and Target views do not exist.
+- Any `.c4` file you placed under `model/` by hand is removed on the next promotion or
+  reconciliation. `model/` is fully generated now; keep hand-written views elsewhere.
+- Change sets that still carry `implementation:` keep working. The field is ignored with a warning
+  and can be deleted from your files whenever convenient.
+- Agents using the adoption skill should reinstall it: `npx -y @borwood/b4-after skill`. The same
+  command now also installs the new `b4-after-guide` skill.
+
+### Changed (breaking)
+
+- **The promoted model no longer claims a change is built.** Promoting an unverified change set
+  used to apply every operation as fact. Now additions and moves are applied and tagged
+  `b4-intended` or `b4-pending-move`; updates and removals of entities that already exist are held
+  back and the target is tagged `b4-pending-update` or `b4-retiring` until evidence verifies them.
+  Every element and relationship carries `b4_change` (the change set it comes from), `b4_status`
+  (its verification) and, when something is held back, `b4_pending`. Anyone reading `model/`,
+  with or without b4-after, can tell what exists from what is planned.
+- Tags starting `b4-` and metadata keys starting `b4_` are reserved. Change sets that set them are
+  rejected (`E_RESERVED_TAG`, `E_RESERVED_METADATA`).
+- Element names that are LikeC4 keywords (`head`, `title`, `kind`, `link`, `style`, `view`, ...)
+  are rejected at validation (`E_RESERVED_WORD`) instead of breaking promotion. Rename the element;
+  stable ids are unaffected.
+- `implementation` is no longer a change-set field. It is derived from evidence: `not_started`,
+  `in_progress` once any observation exists, `implemented` once verified (inferred change sets
+  count as implemented). The `changes` and `change` tools and the commit trailer report the
+  derived value.
+- Library: `validateChangeSet` is unchanged, but `proposeChangeSet` now validates with
+  dependencies projected (see below) and returns `validation.projected`. `roundTripCheck` was
+  removed; use `generateAndCheck`. `generateDSL` no longer emits views; `generateViews` and
+  `workspaceFiles` produce them. `PromoteResult` gained `deferred`, `reconciled` and `warnings`.
+  `Snapshot` requires `parsedData`. `ChangeSet` no longer has `implementation`; `ChangeRecord`
+  still does, derived.
 
 ### Added
 
-- `reconcile` tool and `reconcileBaseline`: apply verified deferred operations (removals cascade)
-  and refresh every status; runs after `record_evidence` and on demand; idempotent.
-- `render` tool: the committed baseline as LikeC4's single-file interactive site (default), PNG,
-  or DSL. Views are generated into `model/views.c4`: folders As-is and Target, each with a
-  landscape, an everything view, one view per element with children, and one per user tag. (#3)
-- `E_RESERVED_WORD`: LikeC4 keywords are rejected as element names on add and rename. The list is
-  determined against the pinned LikeC4 grammar and guarded by a test. (#1)
-- `E_RESERVED_TAG`, `E_RESERVED_METADATA` (agents cannot set `b4-*` tags or `b4_*` metadata) and
-  `W_RETIRING_TARGET` (building on an element whose removal is promoted but unverified).
-- Moves are checked for a name clash at their destination (`E_DUPLICATE_NAME`).
-- `b4-after-guide` skill: the mental model, change-set lifecycle, evidence semantics, how
-  in-progress work appears in the model, planning a project in layers before building it, and how
-  to derive shorter task skills. `help plan` condenses the same guidance.
-- Library: `status.ts` (`finalizeBaseline`, `annotateStatuses`, `deriveEntityStatus`,
-  `planPromotion`, `intendedIds`), `reserved.ts`, `views.ts`, `workspace.ts`, `operations.ts`
-  (shared by projection, promotion and reconciliation), `validateInContext`,
-  `orderByDependencies`, `targetVerification`, `deriveImplementation`, `Verification.failedTargets`.
-  `PromoteResult` gains `deferred`, `reconciled`, `warnings`. `Snapshot` gains `parsedData`.
+- `reconcile` tool: applies held-back updates and removals once their change set is verified for
+  that entity, refreshes every status, regenerates the views, and commits only when something
+  changed. It also runs automatically after `record_evidence`. Idempotent.
+- `render` tool: the committed model for people, as LikeC4's single-file interactive site
+  (default), PNG, or DSL. `project` and `qualify` accept `render=html` too.
+- Generated views in `model/views.c4`: folders As-is and Target, each with a landscape, an
+  everything view, one view per element with children, and one per tag. As-is leaves out intended
+  entities; Target shows them, with pending titles, descriptions and technologies as overrides.
+- `validate` and `propose` see entities introduced by change sets you depend on that are not yet
+  promoted. Declare them in `depends_on` and a whole set of related change sets can be proposed and
+  reviewed together; the response lists `projected_dependencies`. Promotion still goes in
+  dependency order.
+- Operations on an entity that is itself still intended apply at once, so a plan promoted before
+  building can be revised, re-parented or dropped by a follow-up change set without waiting on
+  evidence.
+- `search`, `expand` and `element` rows carry `pending: [...]` whenever an entity is not exactly as
+  drawn. `element` and `change` expose the derived verification per entity.
+- `W_RETIRING_TARGET` warns when a change set builds on an element whose removal is promoted but
+  not yet verified.
+- `b4-after-guide` skill and `help plan`: the mental model, the change-set lifecycle, what evidence
+  means and derives, how in-progress work looks in the model, how to plan a project in layers
+  before building it, and how to derive shorter task-specific skills for a workspace.
+- `b4-after skill <name>` installs a single skill; with no name it installs all shipped skills.
+- Library: `reconcileBaseline`, `finalizeBaseline`, `annotateStatuses`, `deriveEntityStatus`,
+  `planPromotion`, `validateInContext`, `targetVerification`, `deriveImplementation`,
+  `generateViews`, `workspaceFiles`, `materializeProjection`, `LIKEC4_RESERVED_WORDS`, and the
+  reserved vocabulary (`TAG`, `META`, `flagsOfTags`).
 
 ### Fixed
 
 - Removing an element and adding another with the same name in one change set was rejected as a
   duplicate name.
-- Regenerating a model was not idempotent when the specification declared tags out of order.
-- The MCP package's `bin` entry used a `./` prefix that npm 12 rewrites on publish with a warning;
-  the source now matches the published manifest.
+- A move onto a name that already exists at the destination was accepted and failed at promotion;
+  it is now rejected at validation.
+- Promotion refusals caused by LikeC4 parse errors embedded the parser's full expected-token list,
+  hundreds of kilobytes in one tool result. They are truncated to the first few errors.
+- Regenerating a model was not stable when the specification declared tags out of order.
 
 ## [0.1.0] - 2026-10-26
 
