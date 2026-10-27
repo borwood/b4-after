@@ -3,9 +3,9 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import YAML from 'yaml'
-import { ChangeSet, type ChangeSet as ChangeSetT, type Operation } from './schema.js'
+import { ChangeSet, normalizeChangeSetInput, type ChangeSet as ChangeSetT, type Implementation, type Operation } from './schema.js'
 import { Git, type Commit } from './git.js'
-import { EVIDENCE_DIR, EvidenceError, deriveVerification, parseEvidenceFile, type EvidenceRecord, type Verification, type VerificationPolicy } from './evidence.js'
+import { EVIDENCE_DIR, EvidenceError, deriveImplementation, deriveVerification, parseEvidenceFile, type EvidenceRecord, type Verification, type VerificationPolicy } from './evidence.js'
 
 export const CHANGES_DIR = 'changes'
 
@@ -46,6 +46,8 @@ export interface ChangeRecord {
   evidenceCommits: Commit[]
   /** Verification derived under the ledger's policy (default: any environment). Never asserted. */
   verification: Verification
+  /** Implementation progress derived from verification and the inferred flag. Never asserted. */
+  implementation: Implementation
 }
 
 export interface LedgerSnapshot {
@@ -119,7 +121,7 @@ export function parseChangeSet(text: string, path = '<inline>'): ChangeSetT {
   } catch (e: any) {
     throw new LedgerError(`${path}: invalid YAML: ${e.message}`, [{ path, message: e.message }])
   }
-  const result = ChangeSet.safeParse(raw)
+  const result = ChangeSet.safeParse(normalizeChangeSetInput(raw).input)
   if (!result.success) {
     const problems = result.error.issues.map(i => ({ path, message: `${i.path.join('.') || '<root>'}: ${i.message}` }))
     throw new LedgerError(`${path}: invalid change set:\n  ${problems.map(p => p.message).join('\n  ')}`, problems)
@@ -234,6 +236,7 @@ export class Ledger {
       const commits = commitsByPath.get(path) ?? []
       const participants = participantsOf(cs)
       const evidence = evidenceByChange.get(cs.id) ?? []
+      const verification = deriveVerification(cs, evidence, opts.verification)
       const rec: ChangeRecord = {
         changeSet: cs, path, commits,
         firstRecordedAt: commits.length ? commits[commits.length - 1]!.committedAt : null,
@@ -242,7 +245,8 @@ export class Ledger {
         participants,
         evidence,
         evidenceCommits: commitsByPath.get(`${evidenceDir}/${cs.id}.yaml`) ?? [],
-        verification: deriveVerification(cs, evidence, opts.verification),
+        verification,
+        implementation: deriveImplementation(cs, verification),
       }
       ledger.records.set(cs.id, rec)
       for (const p of participants) {

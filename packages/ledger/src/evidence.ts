@@ -9,7 +9,7 @@ import YAML from 'yaml'
 import { z } from 'zod'
 import { Git } from './git.js'
 import { STABLE_ID } from './schema.js'
-import type { ChangeSet } from './schema.js'
+import type { ChangeSet, Implementation } from './schema.js'
 
 export const EVIDENCE_DIR = 'evidence'
 
@@ -115,6 +115,8 @@ export interface Verification {
   /** Passing observations that the status rests on. Answers "what justified this?". */
   basis: string[]
   failing: string[]
+  /** Targets a failing observation speaks to (every target when the record names none). */
+  failedTargets: string[]
   approvals: { id: string; kind: EvidenceKind; result: EvidenceResult; recorded_by: string }[]
   deployments: { id: string; environment: string | null; result: EvidenceResult; observed_at: string; code_revision: string | null }[]
   /** Records that exist but did not count, with the reason. */
@@ -145,6 +147,7 @@ export function deriveVerification(cs: ChangeSet, records: EvidenceRecord[], pol
   const approvals: Verification['approvals'] = []
   const deployments: Verification['deployments'] = []
   const covered = new Set<string>()
+  const failedTargets = new Set<string>()
   const basis: string[] = []
   const failing: string[] = []
   const passingKinds = new Set<EvidenceKind>()
@@ -154,7 +157,11 @@ export function deriveVerification(cs: ChangeSet, records: EvidenceRecord[], pol
     if (cls === 'approval') { approvals.push({ id: r.id, kind: r.kind, result: r.result, recorded_by: r.recorded_by }); continue }
     if (cls === 'deployment') { deployments.push({ id: r.id, environment: r.environment ?? null, result: r.result, observed_at: r.observed_at, code_revision: r.code_revision ?? null }); continue }
     if (r.result === 'inconclusive') { ignored.push({ id: r.id, reason: 'inconclusive' }); continue }
-    if (r.result === 'fail') { failing.push(r.id); continue }
+    if (r.result === 'fail') {
+      failing.push(r.id)
+      for (const t of r.targets?.length ? r.targets : targets) failedTargets.add(t)
+      continue
+    }
     if (requireRev && !r.code_revision) { ignored.push({ id: r.id, reason: 'passing observation without code_revision' }); continue }
     basis.push(r.id)
     passingKinds.add(r.kind)
@@ -172,8 +179,27 @@ export function deriveVerification(cs: ChangeSet, records: EvidenceRecord[], pol
   }
 
   return {
-    status, environment: env ?? 'any', targets, covered: [...covered], uncovered, basis, failing, approvals, deployments, ignored,
+    status, environment: env ?? 'any', targets, covered: [...covered], uncovered, basis, failing, failedTargets: [...failedTargets], approvals, deployments, ignored,
   }
+}
+
+export type TargetVerification = 'verified' | 'unverified' | 'failed'
+
+/** Verification of one operation target: failing evidence wins, then a passing observation covering it. */
+export function targetVerification(v: Verification, target: string): TargetVerification {
+  if (v.failedTargets.includes(target)) return 'failed'
+  return v.covered.includes(target) ? 'verified' : 'unverified'
+}
+
+/**
+ * Implementation progress, derived rather than declared: inferred architecture was observed in the
+ * code, so it counts as implemented; otherwise verification decides, and any observation at all
+ * means work is under way.
+ */
+export function deriveImplementation(cs: Pick<ChangeSet, 'inferred'>, v: Verification): Implementation {
+  if (cs.inferred || v.status === 'verified') return 'implemented'
+  if (v.basis.length || v.failing.length) return 'in_progress'
+  return 'not_started'
 }
 
 // ---------------------------------------------------------------------------------------------

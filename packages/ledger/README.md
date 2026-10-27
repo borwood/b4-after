@@ -10,7 +10,8 @@ library directly for CI hooks, custom tooling, or your own agent surface.
 npm install @borwood/b4-after-ledger
 ```
 
-Node 22.22 or later and git. PNG rendering shells out to the LikeC4 CLI and needs Playwright with
+Node 22.22 or later and git. HTML rendering shells out to the LikeC4 CLI and needs nothing more.
+PNG rendering also needs Playwright with
 Chromium.
 
 ## The repository it reads
@@ -67,35 +68,81 @@ one hop in stories and is never an architectural edge.
 ## Change sets
 
 ```ts
-import { validateChangeSet, proposeChangeSet, setDisposition, promoteChangeSet } from '@borwood/b4-after-ledger'
+import { validateChangeSet, validateInContext, proposeChangeSet, setDisposition, promoteChangeSet } from '@borwood/b4-after-ledger'
 
-const check = validateChangeSet(yamlObject, { registry, ledger })
+const check = validateChangeSet(yamlObject, { registry, ledger })           // against one registry
+const staged = await validateInContext(loaded, yamlObject, ledger)         // unpromoted depends_on projected first
 await proposeChangeSet(repoDir, yamlObject, { actor: 'planning-agent', expectedBaseRevision: sha })
 await setDisposition(repoDir, 'CHG-042', 'accepted', { actor: 'reviewer' })
 await promoteChangeSet(repoDir, 'CHG-042', { actor: 'release-agent', expectedHead: sha })
 ```
 
 **Validation refuses before LikeC4 would.** Schema first, then the operations in order against a
-virtual copy of the baseline: unknown entities, kinds, and parents; duplicate ids and names; use
-after remove; moves into self or a descendant; LikeC4's rule that a relationship cannot connect an
-element with its own ancestor or descendant; dependency existence and cycles. Warnings cover empty
-change sets and references that duplicate an operation.
+virtual copy of the baseline: unknown entities, kinds, and parents; duplicate ids and names (moves
+included); names that are LikeC4 keywords (`E_RESERVED_WORD`: the DSL cannot quote them, so the
+generated model would not parse); use after remove; moves into self or a descendant; LikeC4's rule
+that a relationship cannot connect an element with its own ancestor or descendant; dependency
+existence and cycles. Warnings cover empty change sets and references that duplicate an operation.
+`validateInContext` first projects the change set's unpromoted dependencies (transitively) onto the
+baseline, so related change sets can be proposed before any is promoted; its result lists the
+`projected` ids, and warns (`W_DEPENDENCY_NOT_PROJECTED`) when they do not apply cleanly.
 
-**Proposing** validates against HEAD's baseline and ledger and records the change set as
+**Proposing** validates that way against HEAD's baseline and ledger and records the change set as
 `proposed` (or `draft`) in its own commit. It never touches `model/`. Re-proposing the same id
 revises it until it is promoted; after that, propose a new change set that depends on it.
 **Dispositions** follow a fixed transition table: draft, proposed, accepted, rejected, superseded.
 
 **Promotion is the only write path into `model/`.** The change set must be committed, `accepted`,
-not yet promoted, with every dependency promoted. The operations are applied, the DSL is
-regenerated, reloaded with the real parser, and every stable id is checked to survive, all before
-anything is written. Then `model/model.c4` is rewritten and the change set gains a `promotion`
-record, in one commit with provenance trailers. Any failure restores the working tree.
+not yet promoted, with every dependency promoted. `planPromotion` splits its operations: additions
+and moves apply now and are marked; updates and removals of entities that already exist are
+deferred until evidence verifies them. Inferred change sets, already-verified targets, and targets
+that are themselves still intended apply at once: an entity that does not exist yet has nothing to
+stay faithful to, so a revised plan replaces the plan and a dropped one disappears. The workspace
+is regenerated, reloaded with the real parser, and every stable id is checked
+to survive, all before anything is written. Then `model/model.c4` and `model/views.c4` are
+rewritten and the change set gains a `promotion` record, in one commit with provenance trailers.
+Any failure restores the working tree. The result lists `deferred` operations and `warnings`,
+including the case where deferral had to be abandoned because it would leave the change set
+inconsistent.
 
 **Provenance is dual.** Commits carry a subject such as `propose CHG-042: Add asynchronous billing
-retries` and trailers `Change-Id`, `Origin`, `Actor`, `Intent`, `Disposition`, `Implementation`.
-The YAML stays authoritative for intent and associations; the commit supplies chronology and
-authorship. `expectedHead` refuses to write on a stale view of the repository.
+retries` and trailers `Change-Id`, `Origin`, `Actor`, `Intent`, `Disposition`, `Implementation`
+(the derived value at commit time). The YAML stays authoritative for intent and associations; the
+commit supplies chronology and authorship. `expectedHead` refuses to write on a stale view of the
+repository.
+
+## Status and reconciliation
+
+```ts
+import { reconcileBaseline, annotateStatuses, TAG, META, flagsOfTags } from '@borwood/b4-after-ledger'
+
+await reconcileBaseline(repoDir, { actor: 'ci' })   // { changed, sha, applied, warnings, counts }
+const s = await annotateStatuses(parsedData, ledger) // per-entity flags and reasons, data annotated in place
+flagsOfTags(element.tags)                            // ['intended'] | ['retiring'] | ['pending_update', 'failed'] | []
+```
+
+The committed model says what exists. Every entity carries metadata `b4_change` (latest promoted
+change set operating on it), `b4_status` (its verification for that entity: verified, unverified,
+failed) and, when operations are deferred, `b4_pending`. Reserved tags carry the flags:
+`b4-intended` (added, unverified: does not exist yet; dashed and faded), `b4-retiring` (removal
+promoted, unverified: still exists; dotted and muted), `b4-pending-update` (current values shown),
+`b4-pending-move` (with `b4_moved_from`), `b4-failed`. Agents cannot set or erase them: validation
+rejects `b4-*` tags and `b4_*` metadata (`E_RESERVED_TAG`, `E_RESERVED_METADATA`) and tag
+replacement keeps them. Building on a retiring element is allowed and warned (`W_RETIRING_TARGET`).
+
+`reconcileBaseline` applies every deferred operation whose change set is now verified for that
+target (removals cascade), refreshes all flags, regenerates `model/`, and commits once, only when
+something changed. It is idempotent, and it is how a repository written before statuses existed is
+brought up to date. Verification per target comes from `targetVerification`; implementation
+progress from `deriveImplementation` (inferred or verified: implemented; any observation: in
+progress; else not started). The `implementation` field on change sets is deprecated: accepted,
+dropped, and warned about.
+
+**Views are generated** (`generateViews`) into `model/views.c4`: folders "As-is" and "Target",
+each with a landscape, an everything view, one view per element with children (`el--<fqn>`), and
+one per user tag (`tag--<name>`). As-is views exclude intended entities and edges; Target views show
+them and override pending titles, descriptions and technologies with the intended values from the
+ledger. `workspaceFiles` produces both files from parsed data; `generateAndCheck` proves they load.
 
 ## Projections and rendering
 
@@ -105,8 +152,9 @@ import { projectModel, renderProjection } from '@borwood/b4-after-ledger'
 const p = await projectModel(repoDir, { includeChanges: ['CHG-042', 'CHG-044'] })
 p.model            // computed LikeC4 model with the operations applied; baseline untouched
 p.diff             // added / updated / moved / removed, cascades marked
-await renderProjection(p, { format: 'dsl' })
-await renderProjection(p, { format: 'png', views: ['billing'] })
+await renderProjection(p, { format: 'dsl', ledger })
+await renderProjection(p, { format: 'html', ledger })          // interactive single-file site: the format for people
+await renderProjection(p, { format: 'png', views: ['el--billing'] })
 ```
 
 Projections apply operations to a copy of the baseline's parsed data and recompute. Each change
@@ -190,8 +238,8 @@ await adoptExistingModel(dir, { actor: 'adopter' })
 
 `initModelRepo` creates an empty, valid model repository as its own git repository, even when the
 directory sits inside another repository's work tree. `adoptExistingModel` takes an existing
-LikeC4 model, assigns missing stable ids (regenerating `model/model.c4`), and records one
-inferred, pre-ledger-promoted change set per root plus one for cross-root relationships; it is
+LikeC4 model, assigns missing stable ids, records one inferred, pre-ledger-promoted change set per
+root plus one for cross-root relationships, and regenerates `model/` with statuses and views; it is
 idempotent. Inferred change sets carry `inferred: true` so stories and the qualified baseline say
 where knowledge came from. The agent procedure for inferring a baseline from a codebase is the
 `b4-after-adopt` skill shipped with `@borwood/b4-after`.

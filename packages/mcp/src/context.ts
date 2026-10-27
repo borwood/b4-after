@@ -40,7 +40,7 @@ export class RepoContext {
       try {
         const head = await this.head()
         const [loaded, ledger] = await Promise.all([loadModel(this.repoDir), Ledger.load(this.repoDir)])
-        const snapshot: Snapshot = { model: loaded.model, registry: IdentityRegistry.fromModel(loaded.model), ledger, head }
+        const snapshot: Snapshot = { model: loaded.model, parsedData: loaded.parsedData, registry: IdentityRegistry.fromModel(loaded.model), ledger, head }
         this.cached = { signature, snapshot }
         return snapshot
       } finally {

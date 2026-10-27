@@ -29,16 +29,22 @@ will show as `unverified` until evidence is recorded. Prefer fewer, truer elemen
 3. Decide roots: one `system` per deployable boundary or bounded context, external systems as
    their own roots tagged `external`, human roles as `actor`.
 4. For each root, build one change set (`help schema`, `help operations`):
-   - `inferred: true`, `implementation: implemented`, `title: "Inferred baseline: <root>"`
+   - `inferred: true`, `title: "Inferred baseline: <root>"` (inferred means observed in the code:
+     it applies as existing, unverified; never set `implementation`, it is derived from evidence)
    - `intent`: one sentence on what you inferred it from
    - `sources`: `{ ref: "<repo path you read>", role: "other" }` for the files that justified it
    - operations: parents before children; relationships after both endpoints exist
    - stable ids you would keep after a rename: `ent-<system>-<component>`, `rel-<from>-<verb>-<to>`
+   - local names must not be LikeC4 keywords (`head`, `title`, `kind`, `link`, `style`, ...);
+     `validate` rejects them with `E_RESERVED_WORD`, so pick another name and keep the stable id
    - keep each change set under ~50 operations; split large roots by subsystem
-5. A final change set for cross-boundary relationships, if any.
-6. For each change set: `validate` -> `propose` -> `set_disposition to=accepted` -> `promote`.
-   Pass `expected_head` from the previous response when other agents may be active.
-7. `qualify` and report counts. Everything should be `unverified`, nothing `unrecorded`.
+5. A final change set for cross-boundary relationships, if any, with `depends_on` the roots it joins.
+6. `validate` and `propose` every change set first; validation projects unpromoted `depends_on`, so
+   the whole adoption can be proposed and reviewed as a batch. Then `set_disposition to=accepted`
+   and `promote` in dependency order. Pass `expected_head` from the previous response when other
+   agents may be active.
+7. `qualify` and report counts. Everything should be `unverified`, nothing `unrecorded`. Offer the
+   person `render` (interactive HTML, folders As-is and Target) rather than PNGs.
 
 ## Path B: an existing LikeC4 model
 
@@ -57,6 +63,9 @@ Safe to repeat. Then `qualify` and report.
 ## Afterwards
 
 Any intended change to the architecture goes through the same server: draft a change set from the
-requirement, `validate`, `project render=dsl` to inspect it, `propose`, have it accepted, `promote`.
-Record evidence as implementation lands and `qualify` turns the baseline green. `story` answers
+requirement, `validate`, `project render=dsl` (or `render=html` for a person) to inspect it,
+`propose`, have it accepted, `promote`. Promoting before building is right: unverified additions
+are marked `b4-intended`, removals `b4-retiring`, updates `b4-pending-update`, so the model keeps
+saying what exists while showing the target (`help status`). Record evidence as implementation
+lands; each record reconciles the model and `qualify` turns the baseline green. `story` answers
 what happened to any entity and why.

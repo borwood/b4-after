@@ -1,6 +1,7 @@
 // Change-set schema (PRD sections 5 and 6.1). Fields are deliberately minimal; everything here is
 // Phase B scope. Evidence records (6.2) arrive in Phase D.
 import { z } from 'zod'
+import { DEPRECATED_CHANGE_SET_FIELDS } from './reserved.js'
 
 /** Stable, non-hierarchical entity id (PRD 5.4). Elements and relationships share one namespace. */
 export const STABLE_ID = /^[a-z][a-z0-9_-]{0,127}$/
@@ -15,6 +16,7 @@ const localName = z.string().regex(LOCAL_NAME, 'invalid LikeC4 element name')
 const metadata = z.record(z.string(), z.string())
 
 export const Disposition = z.enum(['draft', 'proposed', 'accepted', 'rejected', 'superseded'])
+/** Derived from evidence, never recorded: see deriveImplementation(). */
 export const Implementation = z.enum(['not_started', 'in_progress', 'implemented'])
 export const SourceRole = z.enum(['requirement', 'acceptance_criteria', 'issue', 'design', 'discussion', 'other'])
 
@@ -105,7 +107,6 @@ export const ChangeSet = z.strictObject({
   depends_on: z.array(changeId).default([]),
   supersedes: z.array(changeId).default([]),
   disposition: Disposition.default('draft'),
-  implementation: Implementation.default('not_started'),
   /** Claimed effective time, when it differs from the time the record was committed (PRD 7.2). */
   effective_at: z.iso.datetime({ offset: true }).optional(),
   operations: z.array(Operation).default([]),
@@ -128,6 +129,19 @@ export type ChangeSet = z.infer<typeof ChangeSet>
 export type ChangeSetInput = z.input<typeof ChangeSet>
 
 export const OPERATION_NAMES = Operation.options.map(o => o.shape.op.value) as readonly Operation['op'][]
+
+/**
+ * Drop fields that older records or agents may still send but that carry no meaning any more
+ * (`implementation` is derived from evidence). Returns the cleaned input and what was dropped.
+ */
+export function normalizeChangeSetInput(input: unknown): { input: unknown; deprecated: string[] } {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return { input, deprecated: [] }
+  const deprecated = Object.keys(DEPRECATED_CHANGE_SET_FIELDS).filter(k => k in (input as object))
+  if (!deprecated.length) return { input, deprecated }
+  const copy: Record<string, unknown> = { ...(input as Record<string, unknown>) }
+  for (const k of deprecated) delete copy[k]
+  return { input: copy, deprecated }
+}
 
 export function isElementOp(op: Operation): op is Extract<Operation, { op: `${string}_element` }> {
   return op.op.endsWith('_element')

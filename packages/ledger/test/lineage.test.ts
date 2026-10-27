@@ -2,6 +2,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { proposeChangeSet, setDisposition } from '../src/propose.js'
 import { promoteChangeSet } from '../src/promote.js'
+import { recordEvidence } from '../src/evidence.js'
+import { reconcileBaseline } from '../src/reconcile.js'
 import { storyOf } from '../src/story.js'
 import { formatStory } from '../src/format.js'
 import { validateChangeSet } from '../src/validate.js'
@@ -65,6 +67,16 @@ describe('lineage', () => {
         { op: 'remove_element', id: 'ent-charges', succeeded_by: ['ent-authorize', 'ent-capture'] },
       ],
     }, '2026-05-01T10:00:00Z')
+
+    // Until the split is verified, the original still exists and says so; the new halves are intended.
+    const retiring = IdentityRegistry.fromModel((await loadModel(fx.dir)).model)
+    expect(retiring.model.element('billing.billing_api.charges').isTagged('b4-retiring')).toBe(true)
+    expect(retiring.model.element('billing.billing_api.capture').isTagged('b4-intended')).toBe(true)
+    await recordEvidence(fx.dir, 'CHG-060', {
+      id: 'ev-060-ci', kind: 'test', result: 'pass', source_ref: 'https://ci/60', code_revision: 'c0ffee1', observed_at: '2026-05-01T12:00:00Z', recorded_by: 'ci',
+    }, { actor: 'ci', date: '2026-05-01T12:05:00Z' })
+    const rec = await reconcileBaseline(fx.dir, { actor: 'ci', date: '2026-05-01T12:06:00Z' })
+    expect(rec.applied).toEqual([{ changeId: 'CHG-060', entityId: 'ent-charges', op: 'remove_element' }])
 
     const old = await storyOf(fx.dir, { entity: 'ent-charges' })
     expect(old.subject.resolved).toBeNull() // gone from the model, story intact (AT-07)

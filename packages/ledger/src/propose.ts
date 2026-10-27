@@ -3,10 +3,11 @@
 import { Git } from './git.js'
 import { IdentityRegistry } from './identity.js'
 import { Ledger } from './ledger.js'
-import { loadModel } from './model.js'
+import { loadModel, type LoadedModel } from './model.js'
+import { applyChangeSets, orderByDependencies, ProjectionError, type ProjectionIssue } from './projection.js'
 import { recordChangeSet, type RecordResult } from './provenance.js'
-import { ChangeSet, type ChangeSet as ChangeSetT, type Disposition } from './schema.js'
-import { validateChangeSet, type ValidationResult } from './validate.js'
+import { ChangeSet, normalizeChangeSetInput, type ChangeSet as ChangeSetT, type Disposition } from './schema.js'
+import { validateChangeSet, type ValidationIssue, type ValidationResult } from './validate.js'
 
 export interface ProposeOptions {
   actor: string
@@ -18,7 +19,7 @@ export interface ProposeOptions {
 }
 
 export interface ProposeResult {
-  validation: ValidationResult
+  validation: ContextualValidation
   record: RecordResult
   changeSet: ChangeSetT
   /** True when a record with this id already existed and was revised. */
@@ -32,7 +33,58 @@ export class ProposalRejected extends Error {
   }
 }
 
-/** Validate a change set against the current baseline and ledger, then record it as proposed (or draft). */
+export interface ContextualValidation extends ValidationResult {
+  /** Unpromoted change sets from depends_on (transitively) that were projected onto the baseline before validating. */
+  projected: string[]
+}
+
+/**
+ * Validate against the baseline with the change set's unpromoted dependencies projected on top, so
+ * related change sets can be proposed and reviewed together before any of them is promoted.
+ * Promotion still requires every dependency promoted first. When the dependencies do not project
+ * cleanly, validation falls back to the bare baseline and says so.
+ */
+export async function validateInContext(loaded: Pick<LoadedModel, 'parsedData' | 'model'>, input: unknown, ledger: Ledger): Promise<ContextualValidation> {
+  const registry = IdentityRegistry.fromModel(loaded.model)
+  const pre = ChangeSet.safeParse(normalizeChangeSetInput(input).input)
+  const deps = pre.success ? unpromotedDependencies(pre.data, ledger) : []
+  if (!deps.length) return { ...validateChangeSet(input, { registry, ledger }), projected: [] }
+
+  try {
+    const issues: ProjectionIssue[] = []
+    const order = orderByDependencies(deps, ledger, issues)
+    if (issues.length) throw new ProjectionError('dependencies cannot be ordered', issues)
+    const projection = await applyChangeSets(loaded.parsedData, order, { baseline: { source: 'worktree', revision: null }, highlight: false, ledger })
+    return { ...validateChangeSet(input, { registry: projection.registry, ledger }), projected: projection.applied }
+  } catch (e) {
+    if (!(e instanceof ProjectionError)) throw e
+    const result = validateChangeSet(input, { registry, ledger })
+    const failing = [...new Set(e.issues.map(i => i.changeId).filter(Boolean))].join(', ')
+    const warning: ValidationIssue = {
+      severity: 'warning', code: 'W_DEPENDENCY_NOT_PROJECTED', path: '/depends_on',
+      message: `unpromoted dependencies could not be projected onto the baseline (${failing}: ${e.issues[0]?.message ?? e.message}); validated against the baseline alone`,
+    }
+    return { ...result, issues: [warning, ...result.issues], projected: [] }
+  }
+}
+
+/** Dependencies of `cs`, transitively, that are in the ledger and not yet promoted. */
+function unpromotedDependencies(cs: ChangeSetT, ledger: Ledger): ChangeSetT[] {
+  const out = new Map<string, ChangeSetT>()
+  const visit = (ids: string[]) => {
+    for (const id of ids) {
+      if (id === cs.id || out.has(id)) continue
+      const rec = ledger.get(id)
+      if (!rec || rec.changeSet.promotion) continue
+      out.set(id, rec.changeSet)
+      visit(rec.changeSet.depends_on)
+    }
+  }
+  visit(cs.depends_on)
+  return [...out.values()]
+}
+
+/** Validate a change set against the current baseline (with unpromoted dependencies projected) and ledger, then record it as proposed (or draft). */
 export async function proposeChangeSet(repoDir: string, input: unknown, opts: ProposeOptions): Promise<ProposeResult> {
   const git = new Git(repoDir)
   const head = await git.headSha()
@@ -42,11 +94,10 @@ export async function proposeChangeSet(repoDir: string, input: unknown, opts: Pr
 
   const ledger = await Ledger.load(repoDir)
   const loaded = await loadModel(repoDir)
-  const registry = IdentityRegistry.fromModel(loaded.model)
 
-  const pre = ChangeSet.safeParse(input)
+  const pre = ChangeSet.safeParse(normalizeChangeSetInput(input).input)
   if (!pre.success) {
-    const validation = validateChangeSet(input, { registry, ledger })
+    const validation = await validateInContext(loaded, input, ledger)
     throw new ProposalRejected(`proposal rejected:\n  ${validation.issues.map(i => `${i.path}: ${i.message}`).join('\n  ')}`, validation)
   }
   const existing = ledger.get(pre.data.id)
@@ -61,12 +112,12 @@ export async function proposeChangeSet(repoDir: string, input: unknown, opts: Pr
   }
   const cs: ChangeSetT = { ...pre.data, disposition: target }
 
-  const validation = validateChangeSet(cs, { registry, ledger })
+  const validation = await validateInContext(loaded, cs, ledger)
   if (!validation.ok) {
     throw new ProposalRejected(`proposal rejected:\n  ${validation.issues.filter(i => i.severity === 'error').map(i => `${i.path}: ${i.message}`).join('\n  ')}`, validation)
   }
 
-  const record = await recordChangeSet(repoDir, cs, { actor: opts.actor, expectedHead: head ?? undefined, date: opts.date })
+  const record = await recordChangeSet(repoDir, cs, { actor: opts.actor, expectedHead: head ?? undefined, date: opts.date, implementation: existing?.implementation })
   return { validation, record, changeSet: cs, revised: !!existing }
 }
 
@@ -110,6 +161,7 @@ export async function setDisposition(repoDir: string, changeId: string, to: Disp
     actor: opts.actor,
     expectedHead: opts.expectedHead,
     date: opts.date,
+    implementation: rec.implementation,
     subject: `${to === 'superseded' ? 'supersede' : to === 'accepted' ? 'accept' : to === 'rejected' ? 'reject' : to === 'proposed' ? 'propose' : 'draft'} ${cs.id}: ${cs.title}`,
     body: to === 'superseded' ? `Superseded-By: ${opts.supersededBy}` : undefined,
   })

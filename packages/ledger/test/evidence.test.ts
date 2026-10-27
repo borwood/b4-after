@@ -165,7 +165,7 @@ describe('recordEvidence and ledger integration', () => {
 
     const text = formatStory(now)
     expect(text).toContain('# Story of ent-billing-api (billing.billing_api)')
-    expect(text).toContain('**CHG-042** Add asynchronous billing retries — 2026-02-10 — accepted / in_progress / verified')
+    expect(text).toContain('**CHG-042** Add asynchronous billing retries — 2026-02-10 — accepted / implemented / verified')
     expect(text).toContain('verified by: ev-042-ci')
   })
 

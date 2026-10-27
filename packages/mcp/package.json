@@ -1,6 +1,6 @@
 {
   "name": "@borwood/b4-after",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server and CLI for b4-after: lets coding agents model a system as C4 (LikeC4), propose and review changes to it, promote accepted changes, and record the evidence that verifies them",
   "license": "MIT",
   "author": "borwood",
@@ -57,7 +57,7 @@
     "node": ">=22.22"
   },
   "dependencies": {
-    "@borwood/b4-after-ledger": "0.1.0",
+    "@borwood/b4-after-ledger": "0.2.0",
     "@modelcontextprotocol/sdk": "1.32.2",
     "zod": "4.6.7"
   },

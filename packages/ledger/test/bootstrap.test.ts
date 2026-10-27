@@ -25,10 +25,10 @@ describe('fresh adoption: init, then inferred change sets through the normal pat
     const loaded = await loadModel(dir)
     expect(loaded.errors).toEqual([])
     expect([...loaded.model.elements()]).toHaveLength(0)
-    expect([...loaded.model.views()].map(v => v.id)).toEqual(['index'])
+    expect([...loaded.model.views()].map(v => v.id)).toEqual(['index', 'index--target'])
     const spec = loaded.model.$data.specification as any
     expect(Object.keys(spec.elements).sort()).toEqual(['actor', 'component', 'container', 'datastore', 'system'])
-    expect(Object.keys(spec.tags)).toEqual(['external'])
+    expect(Object.keys(spec.tags).sort()).toEqual(['b4-failed', 'b4-intended', 'b4-pending-move', 'b4-pending-update', 'b4-retiring', 'external'])
     expect((await Ledger.load(dir)).records.size).toBe(0)
     await expect(initModelRepo(dir, { name: 'Shop', actor: 'x' })).rejects.toThrow(/already has a model/)
   })
@@ -38,7 +38,6 @@ describe('fresh adoption: init, then inferred change sets through the normal pat
     const head = await new Git(dir).headSha()
     const r = await proposeChangeSet(dir, {
       id: 'CHG-1', title: 'Inferred baseline: storefront', intent: 'Inferred from repository layout during adoption', inferred: true,
-      implementation: 'implemented',
       sources: [{ ref: 'repo://shop/README.md', role: 'other' }],
       operations: [
         { op: 'add_element', id: 'ent-shopper', parent: null, name: 'shopper', kind: 'actor', title: 'Shopper' },
@@ -103,7 +102,7 @@ describe('adopting an existing LikeC4 model', () => {
       'CHG-2:Inferred baseline: Mailer:1',
       'CHG-3:Inferred baseline: cross-boundary relationships:2',
     ])
-    expect((await readdir(join(dir, 'model'))).sort()).toEqual(['model.c4'])
+    expect((await readdir(join(dir, 'model'))).sort()).toEqual(['model.c4', 'views.c4'])
 
     const loaded = await loadModel(dir)
     expect(loaded.errors).toEqual([])

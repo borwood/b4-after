@@ -1,9 +1,10 @@
 // Change-set validation against the declared baseline and the ledger (AR-15, AT-08).
 // Phase A findings this covers that LikeC4 does not: unknown relationship kinds are accepted silently
 // by the builder; the ancestor/descendant relationship ban surfaces as an opaque error.
-import { ChangeSet, type ChangeSet as ChangeSetT } from './schema.js'
+import { ChangeSet, normalizeChangeSetInput, type ChangeSet as ChangeSetT } from './schema.js'
 import { IdentityRegistry } from './identity.js'
 import type { Ledger } from './ledger.js'
+import { DEPRECATED_CHANGE_SET_FIELDS, TAG, isLikeC4ReservedWord, isReservedMetadataKey, isReservedTag } from './reserved.js'
 
 export interface ValidationIssue {
   severity: 'error' | 'warning'
@@ -33,7 +34,9 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
   const err = (code: string, path: string, message: string) => issues.push({ severity: 'error', code, path, message })
   const warn = (code: string, path: string, message: string) => issues.push({ severity: 'warning', code, path, message })
 
-  const parsed = ChangeSet.safeParse(input)
+  const normalized = normalizeChangeSetInput(input)
+  for (const k of normalized.deprecated) warn('W_DEPRECATED_FIELD', `/${k}`, DEPRECATED_CHANGE_SET_FIELDS[k]!)
+  const parsed = ChangeSet.safeParse(normalized.input)
   if (!parsed.success) {
     for (const i of parsed.error.issues) err('E_SCHEMA', '/' + i.path.join('/'), i.message)
     return { ok: false, issues }
@@ -69,8 +72,24 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
   const elementKinds = new Set(Object.keys(spec.elements ?? {}))
   const relationshipKinds = new Set(Object.keys(spec.relationships ?? {}))
   const tags = new Set(Object.keys(spec.tags ?? {}))
+  const userTags = [...tags].filter(t => !isReservedTag(t))
   const checkTags = (list: string[] | undefined, path: string) => {
-    for (const t of list ?? []) if (!tags.has(t)) err('E_UNKNOWN_TAG', path, `tag "${t}" is not in the specification (known: ${[...tags].join(', ') || 'none'})`)
+    for (const t of list ?? []) {
+      if (isReservedTag(t)) err('E_RESERVED_TAG', path, `tag "${t}" is reserved: b4-after derives status tags from evidence; they cannot be set`)
+      else if (!tags.has(t)) err('E_UNKNOWN_TAG', path, `tag "${t}" is not in the specification (known: ${userTags.join(', ') || 'none'})`)
+    }
+  }
+  /** LikeC4 cannot quote names, so a keyword would make the regenerated model unparseable (issue #1). */
+  const checkName = (name: string, path: string) => {
+    if (isLikeC4ReservedWord(name)) err('E_RESERVED_WORD', path, `"${name}" is a LikeC4 keyword and cannot be an element name; pick another local name (the stable id is unaffected)`)
+  }
+  const checkMetadata = (md: Record<string, string> | undefined, path: string) => {
+    for (const k of Object.keys(md ?? {})) if (isReservedMetadataKey(k)) err('E_RESERVED_METADATA', `${path}/${k}`, `metadata key "${k}" is reserved: b4-after derives status metadata from evidence; it cannot be set`)
+  }
+  /** An element whose removal is promoted but not yet verified still exists; building on it deserves a note. */
+  const warnIfRetiring = (id: string, path: string, what: string) => {
+    const r = reg.element(id)
+    if (r && reg.model.element(r.fqn).isTagged(TAG.retiring)) warn('W_RETIRING_TARGET', path, `${what} ${id} is retiring: its removal is promoted and awaits verification`)
   }
 
   // Virtual state while walking operations in order.
@@ -92,6 +111,10 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
   }
 
   const elementFqn = (id: string): string | undefined => added.get(id)?.fqn ?? reg.element(id)?.fqn
+  const nameTaken = (fqn: string): boolean => {
+    const holder = reg.elementByFqn(fqn)
+    return (!!holder && !removed.has(holder.stableId)) || [...added.entries()].some(([id, v]) => v.fqn === fqn && !removed.has(id))
+  }
   const elementExists = (id: string) => !removed.has(id) && (added.has(id) || !!reg.element(id))
   const relationshipExists = (id: string) => !removed.has(id) && (addedRels.has(id) || !!reg.relationship(id))
 
@@ -111,15 +134,15 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
       case 'add_element': {
         if (reg.get(op.id) || added.has(op.id) || addedRels.has(op.id)) err('E_DUPLICATE_ID', `${p}/id`, `${op.id} already exists`)
         if (!elementKinds.has(op.kind)) err('E_UNKNOWN_KIND', `${p}/kind`, `element kind "${op.kind}" is not in the specification (known: ${[...elementKinds].join(', ')})`)
+        checkName(op.name, `${p}/name`)
         checkTags(op.tags, `${p}/tags`)
+        checkMetadata(op.metadata, `${p}/metadata`)
         let parentFqn: string | null = null
         if (op.parent !== null) {
-          if (requireElement(op.parent, `${p}/parent`, 'parent')) parentFqn = elementFqn(op.parent)!
+          if (requireElement(op.parent, `${p}/parent`, 'parent')) { parentFqn = elementFqn(op.parent)!; warnIfRetiring(op.parent, `${p}/parent`, 'parent') }
         }
         const fqn = parentFqn ? `${parentFqn}.${op.name}` : op.name
-        if (reg.elementByFqn(fqn) || [...added.values()].some(v => v.fqn === fqn)) {
-          err('E_DUPLICATE_NAME', `${p}/name`, `an element named ${fqn} already exists`)
-        }
+        if (nameTaken(fqn)) err('E_DUPLICATE_NAME', `${p}/name`, `an element named ${fqn} already exists`)
         added.set(op.id, { fqn, kind: op.kind })
         mutated.add(op.id)
         for (const [j, d] of (op.derived_from ?? []).entries()) {
@@ -129,21 +152,29 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
         break
       }
       case 'update_element': {
-        if (requireElement(op.id, `${p}/id`, 'element')) mutated.add(op.id)
+        if (requireElement(op.id, `${p}/id`, 'element')) { mutated.add(op.id); warnIfRetiring(op.id, `${p}/id`, 'element') }
         if (Object.keys(op.set).length === 0) warn('W_EMPTY_UPDATE', `${p}/set`, 'update has no fields')
         checkTags(op.set.tags, `${p}/set/tags`)
+        checkMetadata(op.set.metadata, `${p}/set/metadata`)
         break
       }
       case 'move_element': {
         if (!requireElement(op.id, `${p}/id`, 'element')) break
         mutated.add(op.id)
         const selfFqn = elementFqn(op.id)!
-        if (op.parent !== null) {
-          if (op.parent === op.id) err('E_MOVE_INTO_SELF', `${p}/parent`, `${op.id} cannot be moved into itself`)
-          else if (requireElement(op.parent, `${p}/parent`, 'parent')) {
-            const targetFqn = elementFqn(op.parent)!
-            if (targetFqn.startsWith(selfFqn + '.')) err('E_MOVE_INTO_DESCENDANT', `${p}/parent`, `${op.id} cannot be moved under its own descendant ${op.parent}`)
-          }
+        if (op.name !== undefined) checkName(op.name, `${p}/name`)
+        let destination: string | null = null
+        if (op.parent === null) destination = ''
+        else if (op.parent === op.id) err('E_MOVE_INTO_SELF', `${p}/parent`, `${op.id} cannot be moved into itself`)
+        else if (requireElement(op.parent, `${p}/parent`, 'parent')) {
+          const targetFqn = elementFqn(op.parent)!
+          if (targetFqn.startsWith(selfFqn + '.')) err('E_MOVE_INTO_DESCENDANT', `${p}/parent`, `${op.id} cannot be moved under its own descendant ${op.parent}`)
+          else destination = targetFqn + '.'
+          warnIfRetiring(op.parent, `${p}/parent`, 'parent')
+        }
+        if (destination !== null) {
+          const newFqn = destination + (op.name ?? selfFqn.split('.').pop()!)
+          if (newFqn !== selfFqn && nameTaken(newFqn)) err('E_DUPLICATE_NAME', `${p}/${op.name !== undefined ? 'name' : 'parent'}`, `an element named ${newFqn} already exists`)
         }
         break
       }
@@ -164,8 +195,11 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
           err('E_UNKNOWN_RELATIONSHIP_KIND', `${p}/kind`, `relationship kind "${op.kind}" is not in the specification (known: ${[...relationshipKinds].join(', ')})`)
         }
         checkTags(op.tags, `${p}/tags`)
+        checkMetadata(op.metadata, `${p}/metadata`)
         const okFrom = requireElement(op.from, `${p}/from`, 'source')
         const okTo = requireElement(op.to, `${p}/to`, 'target')
+        if (okFrom) warnIfRetiring(op.from, `${p}/from`, 'source')
+        if (okTo) warnIfRetiring(op.to, `${p}/to`, 'target')
         if (okFrom && okTo) {
           const a = elementFqn(op.from)!, b = elementFqn(op.to)!
           if (IdentityRegistry.sameHierarchy(a, b)) {
@@ -187,7 +221,7 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
         } else {
           mutated.add(op.id)
           if (op.op === 'remove_relationship') removed.add(op.id)
-          else checkTags(op.set.tags, `${p}/set/tags`)
+          else { checkTags(op.set.tags, `${p}/set/tags`); checkMetadata(op.set.metadata, `${p}/set/metadata`) }
         }
         break
       }

@@ -108,6 +108,31 @@ describe('validateChangeSet', () => {
     expect(codes(redundant)).toEqual(['W_REFERENCE_ALSO_OPERATED'])
   })
 
+  it('rejects LikeC4 keywords as element names, on add and on rename', () => {
+    const add = validateChangeSet({ ...base, operations: [{ op: 'add_element', id: 'ent-head', parent: 'ent-billing', name: 'head', kind: 'component' }] }, { registry, ledger })
+    expect(add.ok).toBe(false)
+    expect(add.issues).toContainEqual(expect.objectContaining({ code: 'E_RESERVED_WORD', path: '/operations/0/name' }))
+    const rename = validateChangeSet({ ...base, operations: [{ op: 'move_element', id: 'ent-charges', parent: 'ent-billing-api', name: 'title' }] }, { registry, ledger })
+    expect(codes(rename)).toEqual(['E_RESERVED_WORD'])
+    const fine = validateChangeSet({ ...base, operations: [{ op: 'add_element', id: 'ent-head', parent: 'ent-billing', name: 'head_field', kind: 'component' }] }, { registry, ledger })
+    expect(fine.ok).toBe(true)
+  })
+
+  it('a move may not land on a name that is already taken', () => {
+    const clash = validateChangeSet({ ...base, operations: [{ op: 'move_element', id: 'ent-charges', parent: 'ent-billing', name: 'ledger_db' }] }, { registry, ledger })
+    expect(clash.issues).toContainEqual(expect.objectContaining({ code: 'E_DUPLICATE_NAME', path: '/operations/0/name' }))
+    const sameName = validateChangeSet({
+      ...base,
+      operations: [
+        { op: 'add_element', id: 'ent-x', parent: 'ent-billing', name: 'charges', kind: 'component' },
+        { op: 'move_element', id: 'ent-charges', parent: 'ent-billing' },
+      ],
+    }, { registry, ledger })
+    expect(sameName.issues).toContainEqual(expect.objectContaining({ code: 'E_DUPLICATE_NAME', path: '/operations/1/parent' }))
+    const free = validateChangeSet({ ...base, operations: [{ op: 'move_element', id: 'ent-charges', parent: 'ent-billing' }] }, { registry, ledger })
+    expect(free.ok).toBe(true)
+  })
+
   it('without a baseline it validates shape only and says so', () => {
     const r = validateChangeSet({ ...base, operations: [{ op: 'remove_element', id: 'ent-anything' }] })
     expect(r.ok).toBe(true)

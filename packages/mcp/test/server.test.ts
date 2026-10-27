@@ -48,10 +48,10 @@ beforeAll(async () => {
 afterAll(async () => { await client.close(); await rm(dir, { recursive: true, force: true }) })
 
 describe('surface', () => {
-  it('exposes 17 tools with a small token footprint, and help on demand', async () => {
+  it('exposes 19 tools with a small token footprint, and help on demand', async () => {
     const tools = (await client.listTools()).tools
     expect(tools.map(t => t.name).sort()).toEqual([
-      'bootstrap', 'change', 'changes', 'element', 'expand', 'help', 'overview', 'project', 'promote', 'propose', 'qualify', 'record_evidence', 'releases', 'search', 'set_disposition', 'story', 'validate',
+      'bootstrap', 'change', 'changes', 'element', 'expand', 'help', 'overview', 'project', 'promote', 'propose', 'qualify', 'reconcile', 'record_evidence', 'releases', 'render', 'search', 'set_disposition', 'story', 'validate',
     ])
     const bytes = JSON.stringify(tools).length
     expect(bytes).toBeLessThan(14_000) // roughly 3.5k tokens for the whole tool list
@@ -63,6 +63,8 @@ describe('surface', () => {
     expect(start.text).toMatch(/1\. overview/)
     const ids = await call(client, 'help', { topic: 'concurrency' })
     expect(ids.text).toMatch(/expected_head/)
+    const status = await call(client, 'help', { topic: 'status' })
+    expect(status.text).toMatch(/b4-intended/)
   })
 
   it('overview is bounded and carries head', async () => {
@@ -118,6 +120,14 @@ describe('surface', () => {
   })
 })
 
+describe('guidance', () => {
+  it('documents planning ahead of building', async () => {
+    const plan = await call(client, 'help', { topic: 'plan' })
+    expect(plan.text).toMatch(/promote the plan/)
+    expect(plan.text).toMatch(/targets=\[ids built\]/)
+  })
+})
+
 describe('writes and concurrency', () => {
   const cs = (id: string, name: string) => ({
     id, title: `Add ${name}`, intent: 'test', operations: [{ op: 'add_element', id: `ent-${name}`, parent: 'ent-billing', name, kind: 'component' }],
@@ -146,6 +156,21 @@ describe('writes and concurrency', () => {
     const list = await call(client, 'changes', { disposition: 'proposed' })
     expect(list.json.changes.map((c: any) => c.change)).toEqual(expect.arrayContaining(['CHG-101', 'CHG-102']))
     await a.client.close(); await b.client.close()
+  })
+
+  it('validate sees entities introduced by unpromoted dependencies and says which were projected', async () => {
+    const follow = {
+      id: 'CHG-105', title: 'Wire alpha', intent: 'test', depends_on: ['CHG-101'],
+      operations: [{ op: 'add_relationship', id: 'rel-alpha-uses-api', from: 'ent-alpha', to: 'ent-billing-api', kind: 'uses' }],
+    }
+    const seen = await call(client, 'validate', { change_set: follow })
+    expect(seen.json).toMatchObject({ valid: true, projected_dependencies: ['CHG-101'] })
+    const bare = await call(client, 'validate', { change_set: { ...follow, depends_on: [] } })
+    expect(bare.json.valid).toBe(false)
+    expect(bare.json.projected_dependencies).toBeUndefined()
+    const keyword = await call(client, 'validate', { change_set: cs('CHG-106', 'head') })
+    expect(keyword.json.valid).toBe(false)
+    expect(keyword.json.issues[0]).toMatchObject({ code: 'E_RESERVED_WORD', path: '/operations/0/name' })
   })
 
   it('expected_head (short sha accepted) refuses a write on a moved repository', async () => {
@@ -189,14 +214,27 @@ describe('writes and concurrency', () => {
     const refused = await call(client, 'promote', { change_id: 'CHG-102', actor: 'agent' })
     expect(refused.json.code).toBe('REFUSED')
     const prom = await call(client, 'promote', { change_id: 'CHG-101', actor: 'agent', expected_head: acc.json.head })
-    expect(prom.json).toMatchObject({ ok: true, change: 'CHG-101', added: ['ent-alpha'] })
+    expect(prom.json).toMatchObject({ ok: true, change: 'CHG-101', added: ['ent-alpha'], deferred: [] })
     expect(await readFile(join(dir, 'model', 'model.c4'), 'utf8')).toMatch(/alpha = component/)
     expect((await call(client, 'overview')).json.model.elements).toBe(8)
+    // Promoted but unverified: present, and every row says it is only intended.
+    const intended = await call(client, 'element', { entity: 'ent-alpha' })
+    expect(intended.json).toMatchObject({ pending: ['intended'], tags: ['b4-intended'], metadata: { b4_change: 'CHG-101', b4_status: 'unverified' } })
+    expect((await call(client, 'search', { query: 'alpha' })).json.elements[0].pending).toEqual(['intended'])
+    expect((await call(client, 'expand', { entity: 'ent-billing' })).json.descendants.find((d: any) => d.id === 'ent-alpha').pending).toEqual(['intended'])
+    expect((await call(client, 'changes', { entity: 'ent-alpha' })).json.changes[0].state).toBe('accepted/not_started/unverified/promoted')
 
     const ev = await call(client, 'record_evidence', { change_id: 'CHG-101', actor: 'ci', evidence: {
       id: 'ev-101-ci', kind: 'test', result: 'pass', source_ref: 'https://ci/1', code_revision: 'abcdef0', environment: 'staging', observed_at: '2026-05-01T00:00:00Z', recorded_by: 'ci',
     } })
-    expect(ev.json).toMatchObject({ ok: true, evidence: 'ev-101-ci', verification: 'verified' })
+    expect(ev.json).toMatchObject({ ok: true, evidence: 'ev-101-ci', verification: 'verified', reconcile: { changed: true } })
+    expect(ev.json.head).not.toBe(prom.json.head)
+    const real = await call(client, 'element', { entity: 'ent-alpha' })
+    expect(real.json.pending).toBeUndefined()
+    expect(real.json.metadata.b4_status).toBe('verified')
+    const idle = await call(client, 'reconcile', { actor: 'ci' })
+    expect(idle.json).toMatchObject({ ok: true, changed: false, applied: [] })
+    expect(idle.json.counts.as_is).toBeGreaterThan(0)
 
     const q = await call(client, 'qualify', { environment: 'staging' })
     expect(q.json.counts.verified).toBe(3) // ledger_db + its relationship (CHG-037) and alpha (CHG-101)
@@ -204,7 +242,8 @@ describe('writes and concurrency', () => {
     expect(qp.json.entities.find((e: any) => e.id === 'ent-alpha').status).toBe('unverified')
 
     const story = await call(client, 'story', { entity: 'ent-alpha', environment: 'staging' })
-    expect(story.json.entries[0].state).toBe('accepted/not_started/verified@staging/promoted')
+    expect(story.json.entries[0].state).toBe('accepted/implemented/verified@staging/promoted')
+    expect((await call(client, 'change', { change_id: 'CHG-101' })).json.implementation).toBe('implemented')
 
     // Releases: a deployment of the promoted change set gives staging a released baseline.
     const none = await call(client, 'releases', { environment: 'staging', detail: 'baseline' })
@@ -220,6 +259,20 @@ describe('writes and concurrency', () => {
     expect(rel.json.model.elements).toBe(8)
     expect((await call(client, 'releases', { detail: 'baseline' })).json.code).toBe('VALIDATION')
   })
+
+  it('render gives people the interactive site of the committed baseline', async () => {
+    const dsl = await call(client, 'render', { format: 'dsl' })
+    expect(dsl.json.views).toEqual(expect.arrayContaining(['index', 'index--target', 'el--billing--target']))
+    expect(dsl.json.dsl).toMatch(/views \{/)
+    const out = await mkdtemp(join(tmpdir(), 'b4-after-html-'))
+    try {
+      const html = await call(client, 'render', { out_dir: out })
+      expect(html.json.html.file).toBe(join(out, 'index.html'))
+      expect((await readFile(html.json.html.file, 'utf8')).length).toBeGreaterThan(500_000)
+    } finally {
+      await rm(out, { recursive: true, force: true })
+    }
+  }, 240_000)
 
   it('bootstrap init on a directory that does not exist yet, nested in another repository', async () => {
     // The common dogfooding layout: <code repo>/architecture, before anything is there.
@@ -254,7 +307,7 @@ describe('writes and concurrency', () => {
       const adopt = await call(cl, 'bootstrap', { mode: 'adopt' })
       expect(adopt.json).toMatchObject({ ok: true, mode: 'adopt', change_sets: [] })
       const prop = await call(cl, 'propose', { change_set: {
-        id: 'CHG-1', title: 'Inferred baseline: shop', intent: 'from README', inferred: true, implementation: 'implemented',
+        id: 'CHG-1', title: 'Inferred baseline: shop', intent: 'from README', inferred: true,
         operations: [{ op: 'add_element', id: 'ent-shop', parent: null, name: 'shop', kind: 'system', title: 'Shop' }],
       } })
       expect(prop.json.ok).toBe(true)

@@ -9,7 +9,6 @@ sources:
 depends_on:
   - CHG-037
 disposition: proposed
-implementation: not_started
 operations:
   - op: add_element
     id: ent-billing-retry-worker

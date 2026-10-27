@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { readFile, rm } from 'node:fs/promises'
 import { projectModel, applyChangeSets, ProjectionError, CANDIDATE_TAG } from '../src/projection.js'
 import { renderProjection, materializeProjection } from '../src/render.js'
 import { loadModel } from '../src/model.js'
@@ -208,11 +209,27 @@ describe('render', () => {
       expect(reloaded.errors).toEqual([])
       const reg = IdentityRegistry.fromModel(reloaded.model)
       expect(ids(reg)).toEqual(ids(p.registry))
-      expect([...reloaded.model.view('billing').nodes()].map(n => n.id)).toContain('billing.retry_worker')
+      expect([...reloaded.model.view('el--billing').nodes()].map(n => n.id)).toContain('billing.retry_worker')
     } finally {
       await ws.dispose()
     }
   })
+
+  it('builds the interactive single-file HTML site, the format meant for people', async () => {
+    const base = await loadModel(fx.dir)
+    const p = await applyChangeSets(base.parsedData, [], { baseline: { source: 'worktree', revision: null }, highlight: false })
+    const r = await renderProjection(p, { format: 'html' })
+    expect(r.format).toBe('html')
+    if (r.format !== 'html') return
+    try {
+      const html = await readFile(r.file, 'utf8')
+      expect(html.length).toBeGreaterThan(500_000)
+      expect(html).toContain('As-is / Landscape')
+      expect(html).toContain('Target / Billing Platform')
+    } finally {
+      await rm(r.outDir, { recursive: true, force: true })
+    }
+  }, 240_000)
 
   it.skipIf(!process.env.RENDER_PNG)('exports PNGs through the likec4 CLI', async () => {
     const base = await loadModel(fx.dir)

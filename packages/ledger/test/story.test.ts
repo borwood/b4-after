@@ -60,7 +60,7 @@ describe('storyOf', () => {
 
   it('AT-04: a historical query returns the state as recorded at the cutoff', async () => {
     const now = await storyOf(fx.dir, { entity: 'ent-billing-api' }, deps())
-    expect(now.entries[0]).toMatchObject({ disposition: 'accepted', implementation: 'in_progress' })
+    expect(now.entries[0]).toMatchObject({ disposition: 'accepted', implementation: 'not_started' })
 
     const then = await storyOf(fx.dir, { entity: 'ent-billing-api', revision: fx.shas.stage2 })
     expect(then.snapshot).toMatchObject({ source: 'revision', revision: fx.shas.stage2, modelLoaded: true })

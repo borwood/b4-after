@@ -5,7 +5,6 @@ sources:
   - ref: https://example.test/issues/250
     role: issue
 disposition: rejected
-implementation: not_started
 operations:
   - op: remove_element
     id: ent-payment-gateway

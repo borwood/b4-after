@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ChangeSet, OPERATION_NAMES } from '../src/schema.js'
+import { ChangeSet, OPERATION_NAMES, normalizeChangeSetInput } from '../src/schema.js'
 import { parseChangeSet, serializeChangeSet, participantsOf, LedgerError } from '../src/ledger.js'
 
 const minimal = { id: 'CHG-1', title: 't', intent: 'i' }
@@ -8,9 +8,17 @@ describe('change-set schema', () => {
   it('applies defaults', () => {
     const cs = ChangeSet.parse(minimal)
     expect(cs.disposition).toBe('draft')
-    expect(cs.implementation).toBe('not_started')
     expect(cs.operations).toEqual([])
     expect(cs.references).toEqual([])
+  })
+
+  it('tolerates the deprecated implementation field by dropping it (it is derived from evidence)', () => {
+    expect(ChangeSet.safeParse({ ...minimal, implementation: 'implemented' }).success).toBe(false)
+    const n = normalizeChangeSetInput({ ...minimal, implementation: 'implemented' })
+    expect(n.deprecated).toEqual(['implementation'])
+    expect(ChangeSet.parse(n.input)).not.toHaveProperty('implementation')
+    expect(parseChangeSet('id: CHG-1\ntitle: t\nintent: i\nimplementation: in_progress\n')).not.toHaveProperty('implementation')
+    expect(normalizeChangeSetInput(minimal)).toEqual({ input: minimal, deprecated: [] })
   })
 
   it('rejects unknown fields and unknown operations', () => {

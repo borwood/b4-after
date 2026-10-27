@@ -1,21 +1,21 @@
-// The agent-facing MCP server. Seventeen tools, one-line descriptions, compact JSON results, bounded
+// The agent-facing MCP server. Nineteen tools, one-line descriptions, compact JSON results, bounded
 // defaults, help on demand. See help.ts for the documentation agents can pull in when they need it.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import {
-  storyOf, validateChangeSet, proposeChangeSet, setDisposition, promoteChangeSet, recordEvidence,
-  projectModel, renderProjection, qualifyBaseline, deriveVerification, initModelRepo, adoptExistingModel,
+  storyOf, validateInContext, proposeChangeSet, setDisposition, promoteChangeSet, recordEvidence, reconcileBaseline,
+  projectModel, renderProjection, qualifyBaseline, deriveVerification, initModelRepo, adoptExistingModel, loadModel,
   releaseTimeline, releasedBaseline,
   overview, search, expand, elementDetail, resolveElement,
-  Ledger, ProjectionError, ProposalRejected, PromotionRefused, LedgerError, EvidenceError,
-  type StoryResult, type ValidationIssue,
+  Ledger, ProjectionError, ProposalRejected, PromotionRefused, ReconcileRefused, LedgerError, EvidenceError,
+  type StoryResult, type ValidationIssue, type Renderable, type RenderFormat,
 } from '@borwood/b4-after-ledger'
 import { RepoContext } from './context.js'
 import { help, HELP_TOPICS } from './help.js'
 
 export const SERVER_NAME = 'b4-after'
-export const SERVER_VERSION = '0.1.0'
+export const SERVER_VERSION = '0.2.0'
 
 const short = (sha: string | null | undefined) => (sha ? sha.slice(0, 7) : null)
 
@@ -26,11 +26,14 @@ function fail(code: string, error: string, extra: Record<string, unknown> = {}):
   return { isError: true, content: [{ type: 'text', text: JSON.stringify({ ok: false, code, error, ...extra }) }] }
 }
 const issueRows = (issues: ValidationIssue[]) => issues.map(i => ({ severity: i.severity, code: i.code, path: i.path, message: i.message, ...('changeId' in i ? { change: (i as any).changeId } : {}) }))
+/** Unpromoted dependencies that were projected before validating; absent when there were none. */
+const projectedRows = (projected: string[]) => (projected.length ? { projected_dependencies: projected } : {})
 
 function toFailure(e: unknown): CallToolResult {
   if (e instanceof ProposalRejected) return fail('VALIDATION', e.message.split('\n')[0]!, { issues: issueRows(e.validation.issues) })
   if (e instanceof ProjectionError) return fail('PROJECTION', 'projection rejected', { issues: issueRows(e.issues) })
   if (e instanceof PromotionRefused) return fail('REFUSED', e.message, e.issues.length ? { issues: issueRows(e.issues) } : {})
+  if (e instanceof ReconcileRefused) return fail('REFUSED', e.message)
   if (e instanceof LedgerError || e instanceof EvidenceError) return fail('VALIDATION', e.message.split('\n')[0]!, { issues: e.problems })
   const msg = e instanceof Error ? e.message : String(e)
   if (/repository moved/i.test(msg)) return fail('REPO_MOVED', msg, { hint: 'HEAD changed since expected_head; re-read, re-validate, retry' })
@@ -39,6 +42,23 @@ function toFailure(e: unknown): CallToolResult {
   if (/not an allowed transition|frozen|must be draft|can no longer be revised|promoted/i.test(msg)) return fail('REFUSED', msg)
   if (/invalid LikeC4 model|regenerated model/i.test(msg)) return fail('INVALID_MODEL', msg)
   return fail('ERROR', msg)
+}
+
+const RENDER_FORMATS = ['none', 'dsl', 'png', 'html'] as const
+const renderInput = {
+  render: z.enum(RENDER_FORMATS).optional(),
+  out_dir: z.string().optional(),
+  views: z.array(z.string()).optional(),
+}
+type RenderInput = { render?: typeof RENDER_FORMATS[number]; out_dir?: string; views?: string[] }
+
+/** Render `target` as requested and add the result to `base` (dsl text, or the files written). */
+async function rendered(base: Record<string, unknown>, target: Renderable, a: RenderInput, ledger?: Ledger): Promise<Record<string, unknown>> {
+  if (!a.render || a.render === 'none') return base
+  const r = await renderProjection(target, { format: a.render as RenderFormat, outDir: a.out_dir, views: a.views, ledger })
+  if (r.format === 'dsl') return { ...base, dsl: r.dsl }
+  if (r.format === 'png') return { ...base, png: { dir: r.outDir, files: r.files } }
+  return { ...base, html: { dir: r.outDir, file: r.file } }
 }
 
 function storySummary(r: StoryResult) {
@@ -60,7 +80,7 @@ function storySummary(r: StoryResult) {
 
 export function createServer(ctx: RepoContext): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, {
-    instructions: 'Architecture model + change ledger. Start with overview, then help topic=start. Entities are stable ids (help ids). Writes need actor; pass expected_head when other agents may be writing.',
+    instructions: 'Architecture model + change ledger. Start with overview, then help topic=start. Entities are stable ids (help ids). Rows carry pending=[...] when an entity is intended or retiring rather than real (help status). Writes need actor; pass expected_head when other agents may be writing.',
   })
   const actorOf = (a?: string) => a ?? ctx.options.actor
   const needActor = (a?: string): string => {
@@ -153,7 +173,7 @@ export function createServer(ctx: RepoContext): McpServer {
       total: recs.length, truncated: recs.length > limit,
       changes: recs.slice(0, limit).map(r => ({
         change: r.changeSet.id, title: r.changeSet.title, when: r.firstRecordedAt?.slice(0, 10) ?? null,
-        state: `${r.changeSet.disposition}/${r.changeSet.implementation}/${r.verification.status}${r.changeSet.promotion ? '/promoted' : ''}`,
+        state: `${r.changeSet.disposition}/${r.implementation}/${r.verification.status}${r.changeSet.promotion ? '/promoted' : ''}`,
         targets: [...new Set(r.changeSet.operations.map(o => o.id))], ...(r.changeSet.depends_on.length ? { depends_on: r.changeSet.depends_on } : {}),
       })),
     })
@@ -169,6 +189,7 @@ export function createServer(ctx: RepoContext): McpServer {
     const v = a.environment ? deriveVerification(r.changeSet, r.evidence, { environment: a.environment }) : r.verification
     return ok(ledger.snapshot.revision, {
       change: r.changeSet,
+      implementation: r.implementation,
       recorded: { first: r.firstRecordedAt, last: r.lastRecordedAt, unrecorded: r.unrecorded },
       commits: r.commits.map(c => ({ sha: short(c.sha), at: c.committedAt, subject: c.subject })),
       verification: { status: v.status, environment: v.environment, basis: v.basis, failing: v.failing, uncovered: v.uncovered, approvals: v.approvals.map(x => x.id), deployments: v.deployments.map(d => `${d.id}@${d.environment ?? 'any'}:${d.result}`) },
@@ -181,8 +202,8 @@ export function createServer(ctx: RepoContext): McpServer {
     inputSchema: { change_set: z.record(z.string(), z.unknown()) },
   }, async (a) => guarded(async () => {
     const s = await ctx.snapshot()
-    const v = validateChangeSet(a.change_set, { registry: s.registry, ledger: s.ledger })
-    return ok(s.head, { valid: v.ok, issues: issueRows(v.issues) })
+    const v = await validateInContext(s, a.change_set, s.ledger)
+    return ok(s.head, { valid: v.ok, issues: issueRows(v.issues), ...projectedRows(v.projected) })
   }))
 
   server.registerTool('propose', {
@@ -191,7 +212,7 @@ export function createServer(ctx: RepoContext): McpServer {
   }, async (a) => guarded(() => ctx.withWriteLock(async () => {
     const actor = needActor(a.actor)
     const r = await proposeChangeSet(ctx.repoDir, a.change_set, { actor, expectedBaseRevision: await resolveExpected(ctx, a.expected_head), draft: a.draft })
-    return ok(r.record.sha, { change: r.changeSet.id, disposition: r.changeSet.disposition, revised: r.revised, path: r.record.path, warnings: issueRows(r.validation.issues) })
+    return ok(r.record.sha, { change: r.changeSet.id, disposition: r.changeSet.disposition, revised: r.revised, path: r.record.path, warnings: issueRows(r.validation.issues), ...projectedRows(r.validation.projected) })
   })))
 
   server.registerTool('set_disposition', {
@@ -204,28 +225,46 @@ export function createServer(ctx: RepoContext): McpServer {
   })))
 
   server.registerTool('promote', {
-    description: 'Apply an accepted change set to the committed baseline (policy-gated; the only write into model/)',
+    description: 'Apply an accepted change set to the baseline, marking what is unverified as intended (the only write into model/)',
     inputSchema: { change_id: z.string(), actor: z.string().optional(), expected_head: z.string().optional() },
   }, async (a) => guarded(() => ctx.withWriteLock(async () => {
     const actor = needActor(a.actor)
     const r = await promoteChangeSet(ctx.repoDir, a.change_id, { actor, expectedHead: await resolveExpected(ctx, a.expected_head) })
-    return ok(r.sha, { change: r.changeId, baseline_was: short(r.baseline), added: r.added, removed: r.removed })
+    return ok(r.sha, {
+      change: r.changeId, baseline_was: short(r.baseline), added: r.added, removed: r.removed,
+      deferred: r.deferred.map(d => `${d.entityId}:${d.op}`),
+      ...(r.reconciled.length ? { reconciled: r.reconciled.map(x => `${x.changeId}:${x.entityId}:${x.op}`) } : {}),
+      ...(r.warnings.length ? { warnings: r.warnings } : {}),
+    })
   })))
 
   server.registerTool('record_evidence', {
-    description: 'Append an evidence record to a change set; verification is derived from these',
+    description: 'Append an evidence record to a change set; verification is derived, then the model is reconciled',
     inputSchema: { change_id: z.string(), evidence: z.record(z.string(), z.unknown()), actor: z.string().optional(), expected_head: z.string().optional() },
   }, async (a) => guarded(() => ctx.withWriteLock(async () => {
     const actor = needActor(a.actor)
     const r = await recordEvidence(ctx.repoDir, a.change_id, a.evidence, { actor, expectedRevision: await resolveExpected(ctx, a.expected_head) })
     const s = await ctx.snapshot()
     const v = s.ledger.get(a.change_id)!.verification
-    return ok(r.sha, { change: a.change_id, evidence: r.record.id, verification: v.status, warnings: r.warnings })
+    // The evidence is committed either way; a failed reconciliation is reported, not fatal.
+    const reconcile = await reconcileBaseline(ctx.repoDir, { actor })
+      .then(x => ({ changed: x.changed, ...(x.applied.length ? { applied: x.applied.map(o => `${o.changeId}:${o.entityId}:${o.op}`) } : {}), ...(x.warnings.length ? { warnings: x.warnings } : {}) }))
+      .catch((e: unknown) => ({ changed: false, error: e instanceof Error ? e.message.split('\n')[0] : String(e) }))
+    return ok(await ctx.head(), { change: a.change_id, evidence: r.record.id, verification: v.status, warnings: r.warnings, reconcile })
+  })))
+
+  server.registerTool('reconcile', {
+    description: 'Apply verified deferred operations and refresh status tags in the committed model (idempotent)',
+    inputSchema: { actor: z.string().optional(), expected_head: z.string().optional() },
+  }, async (a) => guarded(() => ctx.withWriteLock(async () => {
+    const actor = needActor(a.actor)
+    const r = await reconcileBaseline(ctx.repoDir, { actor, expectedHead: await resolveExpected(ctx, a.expected_head) })
+    return ok(r.sha, { changed: r.changed, applied: r.applied.map(o => `${o.changeId}:${o.entityId}:${o.op}`), counts: r.counts, ...(r.warnings.length ? { warnings: r.warnings } : {}) })
   })))
 
   server.registerTool('project', {
-    description: 'Candidate projection of change sets on the baseline (nothing written); render dsl or png',
-    inputSchema: { changes: z.array(z.string()).min(1), baseline_revision: z.string().optional(), highlight: z.boolean().optional(), render: z.enum(['none', 'dsl', 'png']).optional(), out_dir: z.string().optional(), views: z.array(z.string()).optional() },
+    description: 'Candidate projection of change sets on the baseline (nothing written); render dsl, html or png',
+    inputSchema: { changes: z.array(z.string()).min(1), baseline_revision: z.string().optional(), highlight: z.boolean().optional(), ...renderInput },
   }, async (a) => guarded(async () => {
     const s = a.baseline_revision ? null : await ctx.snapshot()
     const p = await projectModel(ctx.repoDir, { includeChanges: a.changes, baselineRevision: a.baseline_revision, highlight: a.highlight, ledger: s?.ledger })
@@ -234,23 +273,29 @@ export function createServer(ctx: RepoContext): McpServer {
       diff: p.diff, elements: [...p.model.elements()].length, relationships: [...p.model.relationships()].length,
       ...(p.warnings.length ? { warnings: issueRows(p.warnings) } : {}),
     }
-    if (a.render === 'dsl') { const r = await renderProjection(p, { format: 'dsl' }); if (r.format === 'dsl') base.dsl = r.dsl }
-    if (a.render === 'png') { const r = await renderProjection(p, { format: 'png', outDir: a.out_dir, views: a.views }); if (r.format === 'png') base.png = { dir: r.outDir, files: r.files } }
-    return ok(p.baseline.revision, base)
+    return ok(p.baseline.revision, await rendered(base, p, a, s?.ledger))
   }))
 
   server.registerTool('qualify', {
     description: 'Committed baseline annotated per entity with derived verification (by environment, revision)',
-    inputSchema: { environment: z.string().optional(), revision: z.string().optional(), detail: z.enum(['counts', 'full']).optional(), render: z.enum(['none', 'dsl', 'png']).optional(), out_dir: z.string().optional(), views: z.array(z.string()).optional() },
+    inputSchema: { environment: z.string().optional(), revision: z.string().optional(), detail: z.enum(['counts', 'full']).optional(), ...renderInput },
   }, async (a) => guarded(async () => {
     const s = a.revision ? null : await ctx.snapshot()
     const q = await qualifyBaseline(ctx.repoDir, { environment: a.environment, revision: a.revision, highlight: a.render !== undefined && a.render !== 'none', ledger: s?.ledger })
     const base: Record<string, unknown> = { environment: q.environment, baseline: { source: q.baseline.source, revision: short(q.baseline.revision) }, counts: q.counts }
     if (a.detail === 'full') base.entities = [...q.entities.values()].filter(e => e.status !== 'unrecorded').map(e => ({ id: e.entityId, status: e.status, change: e.changeId, basis: e.basis, reason: e.reason }))
     else base.attention = [...q.entities.values()].filter(e => e.status === 'failed' || e.status === 'partial').map(e => `${e.entityId}:${e.status}:${e.changeId}`)
-    if (a.render === 'dsl') { const r = await renderProjection(q, { format: 'dsl' }); if (r.format === 'dsl') base.dsl = r.dsl }
-    if (a.render === 'png') { const r = await renderProjection(q, { format: 'png', outDir: a.out_dir, views: a.views }); if (r.format === 'png') base.png = { dir: r.outDir, files: r.files } }
-    return ok(q.baseline.revision, base)
+    return ok(q.baseline.revision, await rendered(base, q, a, s?.ledger))
+  }))
+
+  server.registerTool('render', {
+    description: 'Render the committed baseline for people: html (interactive site, default), png, or dsl',
+    inputSchema: { format: z.enum(['html', 'png', 'dsl']).optional(), revision: z.string().optional(), out_dir: z.string().optional(), views: z.array(z.string()).optional() },
+  }, async (a) => guarded(async () => {
+    const s = a.revision ? null : await ctx.snapshot()
+    const loaded = await loadModel(ctx.repoDir, a.revision ? { revision: a.revision } : {})
+    const base = { baseline: { source: loaded.source, revision: short(loaded.revision ?? s?.head) }, views: Object.keys(loaded.parsedData.views ?? {}) }
+    return ok(loaded.revision ?? s?.head, await rendered(base, { data: loaded.parsedData }, { render: a.format ?? 'html', out_dir: a.out_dir, views: a.views }, s?.ledger))
   }))
 
   server.registerTool('releases', {
@@ -286,7 +331,7 @@ export function createServer(ctx: RepoContext): McpServer {
     if (a.mode === 'init') {
       if (!a.name) return fail('VALIDATION', 'name is required for init')
       const r = await initModelRepo(ctx.repoDir, { name: a.name, actor, kinds: a.kinds, relationshipKinds: a.relationship_kinds, tags: a.tags })
-      return ok(r.sha, { mode: 'init', files: r.files, next: 'propose inferred change sets (inferred: true, implementation: implemented), accept, promote; see help adopt' })
+      return ok(r.sha, { mode: 'init', files: r.files, next: 'propose inferred change sets (inferred: true), accept, promote; see help adopt' })
     }
     const r = await adoptExistingModel(ctx.repoDir, { actor })
     return ok(r.sha, { mode: 'adopt', assigned_ids: r.assignedIds, change_sets: r.changeSets, skipped: r.skipped })

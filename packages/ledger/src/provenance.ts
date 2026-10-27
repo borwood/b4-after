@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Git, parseTrailers } from './git.js'
 import { changeSetPath, serializeChangeSet, CHANGES_DIR } from './ledger.js'
-import type { ChangeSet, Disposition } from './schema.js'
+import type { ChangeSet, Disposition, Implementation } from './schema.js'
 
 export const TRAILER = {
   changeId: 'Change-Id',
@@ -31,6 +31,8 @@ export interface CommitMessageOptions {
   subject?: string
   /** Free text placed between subject and trailers. */
   body?: string
+  /** Derived implementation progress at the time of the commit. Default not_started. */
+  implementation?: Implementation
 }
 
 export function commitMessageFor(cs: ChangeSet, opts: CommitMessageOptions): string {
@@ -42,7 +44,7 @@ export function commitMessageFor(cs: ChangeSet, opts: CommitMessageOptions): str
     [TRAILER.actor, opts.actor],
     [TRAILER.intent, oneLine(cs.intent)],
     [TRAILER.disposition, cs.disposition],
-    [TRAILER.implementation, cs.implementation],
+    [TRAILER.implementation, opts.implementation ?? 'not_started'],
   ]
   const parts = [subject.trim()]
   if (opts.body?.trim()) parts.push(opts.body.trim())

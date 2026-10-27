@@ -90,8 +90,8 @@ describe('promote', () => {
     expect(res.baseline).toBe(head)
     expect(res.added.sort()).toEqual(['ent-invoice-cache', 'rel-ui-reads-cache'])
 
-    // Model directory now holds only the generated file.
-    expect((await readdir(join(fx.dir, 'model'))).sort()).toEqual(['model.c4'])
+    // Model directory now holds only the generated files; hand-written views and specs are gone.
+    expect((await readdir(join(fx.dir, 'model'))).sort()).toEqual(['model.c4', 'views.c4'])
     const loaded = await loadModel(fx.dir)
     expect(loaded.errors).toEqual([])
     const reg = IdentityRegistry.fromModel(loaded.model)
@@ -99,7 +99,12 @@ describe('promote', () => {
     expect(reg.element('ent-invoice-cache')!.fqn).toBe('billing.invoice_cache')
     expect(reg.relationship('rel-ui-reads-cache')!.toFqn).toBe('billing.invoice_cache')
     expect(reg.element('ent-charges')!.fqn).toBe('billing.billing_api.charges') // pre-existing ids survived regeneration
-    expect([...loaded.model.views()].map(v => v.id).sort()).toEqual(['billing', 'index'])
+    const views = [...loaded.model.views()].map(v => v.id)
+    expect(views).toEqual(expect.arrayContaining(['index', 'index--target', 'everything', 'el--billing', 'el--billing--target', 'el--billing--billing_api', 'tag--external']))
+    // Unverified additions are intended: present, marked, excluded from the As-is views.
+    expect(loaded.model.element('billing.invoice_cache').isTagged('b4-intended')).toBe(true)
+    expect([...loaded.model.view('el--billing').nodes()].map(n => n.id)).not.toContain('billing.invoice_cache')
+    expect([...loaded.model.view('el--billing--target').nodes()].map(n => n.id)).toContain('billing.invoice_cache')
 
     // One commit carrying both files, with provenance.
     const [c] = await fx.git.log({ rev: res.sha })

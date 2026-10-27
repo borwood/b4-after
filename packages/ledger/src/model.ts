@@ -87,31 +87,26 @@ const RADIX_HEX: Record<string, string> = {
   purple: '#8E4EC6', crimson: '#E93D82', lime: '#BDEE63', yellow: '#FFE629', violet: '#6E56CF',
 }
 
-/** Make parsed data safe for the DSL generator. Returns a copy. */
+/** Make parsed data safe and deterministic for the DSL generator. Returns a copy. */
 export function sanitizeForGeneration(data: ParsedModelData): ParsedModelData {
   const out = structuredClone(data) as ParsedModelData
-  for (const tag of Object.values<any>(out.specification?.tags ?? {})) {
+  const tags: Record<string, any> = out.specification?.tags ?? {}
+  for (const tag of Object.values<any>(tags)) {
     const c = tag?.color
     if (typeof c === 'string' && !c.startsWith('#') && !THEME_COLORS.has(c)) tag.color = RADIX_HEX[c] ?? '#64748b'
   }
+  // The parser hands tags back sorted; emit them sorted too, so regenerating a generated file is a no-op.
+  if (out.specification) out.specification.tags = Object.fromEntries(Object.keys(tags).sort().map(k => [k, tags[k]]))
   return out
 }
 
-/** Generate DSL from parsed data (never from computed data: computed views carry nodes, not rules). */
+/**
+ * Generate specification and model DSL from parsed data (never from computed data: computed views
+ * carry nodes, not rules). Views are left out: they are generated separately (see views.ts).
+ */
 export async function generateDSL(data: ParsedModelData): Promise<string> {
   const { generate } = await import('likec4/generators/likec4')
-  return generate(sanitizeForGeneration(data) as any)
-}
-
-/** Validate parsed data by generating DSL and loading it with the real LikeC4 parser. Returns the DSL. */
-export async function roundTripCheck(data: ParsedModelData): Promise<{ dsl: string; errors: string[] }> {
-  const dsl = await generateDSL(data)
-  const tmp = await mkdtemp(join(tmpdir(), 'b4-after-check-'))
-  try {
-    await writeFile(join(tmp, 'model.c4'), dsl, 'utf8')
-    const loaded = await readWorkspace(tmp, 'worktree', null, false)
-    return { dsl, errors: loaded.errors }
-  } finally {
-    await rm(tmp, { recursive: true, force: true })
-  }
+  const copy = sanitizeForGeneration(data)
+  copy.views = {}
+  return generate(copy as any)
 }

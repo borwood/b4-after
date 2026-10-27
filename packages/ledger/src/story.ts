@@ -34,6 +34,7 @@ export interface StoryEntry {
   title: string
   intent: string
   disposition: Disposition
+  /** Derived from verification and the inferred flag; never asserted. */
   implementation: Implementation
   /** Derived from evidence on file at the snapshot; never asserted (PRD 6.1). */
   verification: { status: VerificationStatus; environment: string; basis: string[]; failing: string[]; uncovered: string[] }
@@ -208,7 +209,7 @@ function toEntry(r: ChangeRecord, members: Set<string>, include: Set<StoryInclud
     title: cs.title,
     intent: cs.intent,
     disposition: cs.disposition,
-    implementation: cs.implementation,
+    implementation: r.implementation,
     verification: { status: v.status, environment: v.environment, basis: v.basis, failing: v.failing, uncovered: v.uncovered },
     promoted: !!cs.promotion,
     inferred: !!cs.inferred,

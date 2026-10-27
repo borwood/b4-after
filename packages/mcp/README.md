@@ -11,14 +11,14 @@ Claude Code:
 
 ```sh
 claude mcp add b4-after -- npx -y @borwood/b4-after ./architecture --actor claude
-npx -y @borwood/b4-after skill            # -> .claude/skills/b4-after-adopt
+npx -y @borwood/b4-after skill            # -> .claude/skills/b4-after-guide, .claude/skills/b4-after-adopt
 ```
 
 Codex:
 
 ```sh
 codex mcp add b4-after -- npx -y @borwood/b4-after ./architecture --actor codex
-npx -y @borwood/b4-after skill --codex    # -> .agents/skills/b4-after-adopt
+npx -y @borwood/b4-after skill --codex    # -> .agents/skills/...
 ```
 
 Any other MCP client, over stdio:
@@ -43,34 +43,39 @@ distinct change sets never conflict, re-proposing an id revises it, overlapping 
 a `depends_on` fail projection with `E_CONFLICT`, and every write is serialised by the lock with
 `expected_head` for optimistic concurrency. A workable division of labour: the planner proposes
 the change set; implementing subagents read, record evidence at their branch's `code_revision`
-with an `environment` such as `local` or `ci-pr`, and update implementation status; promotion
+with an `environment` such as `local` or `ci-pr`, which also drives the derived implementation
+status; promotion
 happens when the work lands on the main branch.
 
 ## CLI
 
 ```
 b4-after [repoDir] [--actor <name>]     MCP server (stdio) over a model repository
-b4-after skill [--codex] [--to <dir>]   install the b4-after-adopt skill for your coding agent
+b4-after skill [name...] [--codex] [--to <dir>]   install the shipped skills (or the named ones) for your coding agent
 ```
 
 Environment: `B4_AFTER_REPO`, `B4_AFTER_ACTOR`. `--actor` is the default recorded on writes; a tool
 call may name its own. Each agent process gets its own server process; that is fine (see
 Concurrency).
 
-## The skill
+## The skills
 
-`b4-after-adopt` tells an agent how to bring a codebase into the ledger honestly: survey the
-repository, decide roots, propose one inferred change set per bounded context citing what it
-read, promote, and report counts. Everything imported shows as *unverified* until evidence is
-recorded. `b4-after skill` copies it into `.claude/skills/`; `--codex` targets `.agents/skills/`;
-`--to` names any skills directory. The skill ships inside this package, so it always matches the
-server it was installed with.
+`b4-after-guide` is the general one: the mental model of the repository, the three states of an
+architectural fact (proposed, intended, real), change sets and their lifecycle, what evidence means
+and what it derives, how in-progress work looks in the model, how to plan a project in layers
+before building it, the day-to-day loops, and how to cut it into shorter task-specific skills for a
+workspace. `b4-after-adopt` tells an agent how to bring an existing codebase into the ledger
+honestly: survey the repository, decide roots, propose one inferred change set per bounded context
+citing what it read, promote, and report counts. `b4-after skill` installs both into
+`.claude/skills/`; name one to install only it; `--codex` targets `.agents/skills/`; `--to` names
+any skills directory. The skills ship inside this package, so they always match the server they
+were installed with.
 
 ## Tools
 
 | Tool | Purpose |
 |---|---|
-| help | documentation by topic (start, ids, schema, operations, evidence, workflow, concurrency, queries, policy, errors, adopt) |
+| help | documentation by topic (start, ids, schema, operations, evidence, status, workflow, plan, concurrency, queries, policy, errors, adopt) |
 | overview | roots, counts, open change sets, head; says so when the repository is not initialised yet |
 | search | ranked element lookup by id, fqn, title, kind, tag |
 | expand | descendants of an entity plus the relationships touching them |
@@ -78,15 +83,36 @@ server it was installed with.
 | story | change sets involving an entity or subtree, oldest first, paged; as of a revision or date |
 | changes | list change sets by disposition, promotion, or entity |
 | change | one change set with commits, derived verification, and optionally its evidence |
-| validate | dry-run a change set against the baseline and ledger |
-| propose | record a change set as proposed or draft; never touches the model |
+| validate | dry-run a change set against the baseline and ledger, with unpromoted `depends_on` projected first |
+| propose | validate the same way and record a change set as proposed or draft; never touches the model |
 | set_disposition | governance transition (draft, proposed, accepted, rejected, superseded) |
-| promote | apply an accepted change set to the baseline; the only write into `model/` |
-| record_evidence | append an evidence record; verification follows from it |
-| project | candidate projection of change sets, optionally rendered as DSL or PNG |
+| promote | apply an accepted change set to the baseline, marking unverified parts as intended; the only write into `model/` |
+| record_evidence | append an evidence record; verification follows from it, and the model is reconciled |
+| reconcile | apply verified deferred operations and refresh status tags; idempotent |
+| project | candidate projection of change sets, optionally rendered as DSL, HTML or PNG |
 | qualify | the committed baseline annotated per entity with derived verification |
+| render | the committed baseline for people: interactive HTML site (default), PNG, or DSL |
 | releases | deployment timeline per environment, and the released baseline at a time |
 | bootstrap | init an empty model repository, or adopt an existing LikeC4 model as an inferred baseline |
+
+## What exists and what is intended
+
+The committed model is faithful to what exists. Promotion applies additions and moves and marks
+them; it defers property updates and removals of existing entities until evidence verifies them.
+Reserved tags say so on every entity: `b4-intended` (does not exist yet; excluded from As-is
+views), `b4-retiring` (still exists; removal awaits verification), `b4-pending-update` (current
+values shown; Target views carry the intended ones), `b4-pending-move`, `b4-failed`. Metadata
+`b4_change`, `b4_status` and `b4_pending` give the change set, its verification for that entity,
+and any deferred operations. Rows returned by `search`, `expand` and `element` carry
+`pending: [...]` whenever an entity is not exactly as shown. Inferred change sets, which describe
+what was observed during adoption, apply at once without flags, and so does any operation on an
+entity that is itself still intended: revising or dropping a plan replaces the plan rather than
+waiting for evidence that could never come. `help topic=status` has the rules; `help topic=plan`
+covers planning a project in layers before building it.
+
+Views are generated into `model/views.c4` on every promotion and reconciliation: folders As-is and
+Target, each with a landscape, an everything view, one view per element with children, and one
+per tag. `render` builds the interactive single-file site; that is the format meant for people.
 
 ## Design for agents
 
@@ -101,6 +127,9 @@ server it was installed with.
   `PROJECTION`, `INVALID_MODEL`) with `issues[]` carrying JSON-pointer paths into the input.
 - **Nothing an agent does not need**: no view internals, no layout data, no LikeC4 hashes.
   Stable ids throughout; `fqn:` marks an element that lacks one.
+- **Nothing asserted that evidence can derive**: verification and implementation progress are
+  computed from evidence records; an `implementation` field in a change set is accepted and ignored
+  with a warning.
 
 ## Concurrency
 

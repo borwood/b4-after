@@ -6,14 +6,18 @@ import { join } from 'node:path'
 import { Git } from './git.js'
 import { IdentityRegistry, STABLE_ID_KEY } from './identity.js'
 import { Ledger, changeSetPath, serializeChangeSet, CHANGES_DIR } from './ledger.js'
-import { loadModel, roundTripCheck, MODEL_DIR, type ParsedModelData } from './model.js'
+import { loadModel, modelFromParsedData, MODEL_DIR, type ParsedModelData } from './model.js'
+import { STATUS_FLAGS, TAG, TAG_COLOR, isReservedMetadataKey, userTags } from './reserved.js'
 import type { ChangeSet, Operation } from './schema.js'
+import { finalizeBaseline } from './status.js'
+import { generateViews } from './views.js'
+import { generateAndCheck, readWorkspace, sameWorkspace, summarizeErrors, writeWorkspace, MODEL_FILE, VIEWS_FILE } from './workspace.js'
 
 export const DEFAULT_KINDS = ['actor', 'system', 'container', 'component', 'datastore'] as const
 export const DEFAULT_RELATIONSHIP_KINDS = ['uses', 'publishes_to', 'reads_from', 'writes_to'] as const
 
 export interface InitOptions {
-  /** Project name, used in the README and the landscape view title. */
+  /** Project name, used in the README. */
   name: string
   actor: string
   kinds?: string[]
@@ -24,7 +28,7 @@ export interface InitOptions {
 
 export interface InitResult { sha: string; files: string[] }
 
-/** Create an empty model repository: git, a specification, an empty model, a landscape view. */
+/** Create an empty model repository: git, a specification (with the reserved status tags), an empty model, generated views. */
 export async function initModelRepo(dir: string, opts: InitOptions): Promise<InitResult> {
   await mkdir(dir, { recursive: true })
   const git = new Git(dir)
@@ -41,31 +45,27 @@ export async function initModelRepo(dir: string, opts: InitOptions): Promise<Ini
     '',
     ...rels.map(r => `  relationship ${r}`),
     ...(opts.tags?.length ? ['', ...opts.tags.map(t => `  tag ${t}`)] : []),
+    '',
+    ...STATUS_FLAGS.map(f => `  tag ${TAG[f]} {\n    color ${TAG_COLOR[f]}\n  }`),
     '}',
     '',
     'model {',
     '}',
     '',
-    'views {',
-    '  view index {',
-    `    title '${opts.name.replace(/'/g, "\\'")} landscape'`,
-    '    include *',
-    '  }',
-    '}',
-    '',
   ].join('\n')
-  await mkdir(join(dir, MODEL_DIR), { recursive: true })
-  await writeFile(join(dir, MODEL_DIR, 'model.c4'), spec, 'utf8')
+  const modelDir = join(dir, MODEL_DIR)
+  await writeWorkspace(modelDir, { [MODEL_FILE]: spec })
+  const loaded = await loadModel(dir, { throwIfInvalid: false })
+  if (loaded.errors.length) throw new Error(`generated specification is invalid:\n  ${summarizeErrors(loaded.errors).join('\n  ')}`)
+  await writeWorkspace(modelDir, { [MODEL_FILE]: spec, [VIEWS_FILE]: generateViews(loaded.parsedData) })
   await mkdir(join(dir, CHANGES_DIR), { recursive: true })
   await mkdir(join(dir, 'evidence'), { recursive: true })
   await writeFile(join(dir, CHANGES_DIR, '.gitkeep'), '', 'utf8')
   await writeFile(join(dir, 'evidence', '.gitkeep'), '', 'utf8')
   await writeFile(join(dir, 'README.md'), readme(opts.name), 'utf8')
-  const loaded = await loadModel(dir, { throwIfInvalid: false })
-  if (loaded.errors.length) throw new Error(`generated specification is invalid:\n  ${loaded.errors.join('\n  ')}`)
   await git.add(['.'])
   const sha = await git.commit(`bootstrap: init model repository for ${opts.name}\n\nActor: ${opts.actor}\n`, { date: opts.date })
-  return { sha, files: [`${MODEL_DIR}/model.c4`, 'README.md'] }
+  return { sha, files: [`${MODEL_DIR}/${MODEL_FILE}`, `${MODEL_DIR}/${VIEWS_FILE}`, 'README.md'] }
 }
 
 export interface AdoptOptions {
@@ -84,9 +84,10 @@ export interface AdoptResult {
 }
 
 /**
- * Adopt an existing LikeC4 model: assign missing stable ids (regenerating the DSL), then record one
- * inferred, pre-ledger-promoted change set per root element plus one for cross-root relationships.
- * Safe to run again: entities already covered by a promoted change set are skipped.
+ * Adopt an existing LikeC4 model: assign missing stable ids, record one inferred, pre-ledger-promoted
+ * change set per root element plus one for cross-root relationships, and regenerate the workspace
+ * with statuses and views. Safe to run again: entities already covered by a promoted change set are
+ * skipped, and nothing is committed when the model is already as it should be.
  */
 export async function adoptExistingModel(dir: string, opts: AdoptOptions): Promise<AdoptResult> {
   const git = new Git(dir)
@@ -98,34 +99,11 @@ export async function adoptExistingModel(dir: string, opts: AdoptOptions): Promi
   // 1. Stable ids.
   const loaded = await loadModel(dir)
   const data = structuredClone(loaded.parsedData) as ParsedModelData
-  const taken = new Set<string>()
-  for (const el of Object.values<any>(data.elements)) if (el.metadata?.[STABLE_ID_KEY]) taken.add(String(el.metadata[STABLE_ID_KEY]))
-  for (const rel of Object.values<any>(data.relations)) if (rel.metadata?.[STABLE_ID_KEY]) taken.add(String(rel.metadata[STABLE_ID_KEY]))
-  const unique = (base: string) => { let id = base, n = 2; while (taken.has(id)) id = `${base}-${n++}`; taken.add(id); return id }
-  let assignedElements = 0, assignedRelationships = 0
-  for (const [fqn, el] of Object.entries<any>(data.elements)) {
-    if (el.metadata?.[STABLE_ID_KEY]) continue
-    el.metadata = { ...(el.metadata ?? {}), [STABLE_ID_KEY]: unique('ent-' + slug(fqn)) }
-    assignedElements++
-  }
-  for (const rel of Object.values<any>(data.relations)) {
-    if (rel.metadata?.[STABLE_ID_KEY]) continue
-    const from = slug(lastSegment(rel.source?.model ?? '')), to = slug(lastSegment(rel.target?.model ?? ''))
-    rel.metadata = { ...(rel.metadata ?? {}), [STABLE_ID_KEY]: unique(`rel-${from}-${slug(rel.kind ?? 'to')}-${to}`) }
-    assignedRelationships++
-  }
-  const files: string[] = []
-  if (assignedElements || assignedRelationships) {
-    const { dsl, errors } = await roundTripCheck(data)
-    if (errors.length) throw new Error(`model does not regenerate cleanly; nothing written:\n  ${errors.join('\n  ')}`)
-    for (const f of await readdir(join(dir, MODEL_DIR))) if (/\.c4$/i.test(f) && f !== 'model.c4') await rm(join(dir, MODEL_DIR, f))
-    await writeFile(join(dir, MODEL_DIR, 'model.c4'), dsl, 'utf8')
-    files.push(MODEL_DIR)
-  }
+  const assigned = assignStableIds(data)
 
   // 2. Inferred change sets from the (now fully identified) model.
-  const reloaded = assignedElements || assignedRelationships ? await loadModel(dir) : loaded
-  const registry = IdentityRegistry.fromModel(reloaded.model)
+  const model = await modelFromParsedData(data)
+  const registry = IdentityRegistry.fromModel(model)
   if (registry.problems.length) throw new Error(`identity problems after id assignment:\n  ${registry.problems.map(p => p.message).join('\n  ')}`)
   const ledger = await Ledger.load(dir, { tolerant: true })
   const covered = new Set<string>()
@@ -139,15 +117,16 @@ export async function adoptExistingModel(dir: string, opts: AdoptOptions): Promi
   const elementOp = (fqn: string): Operation | null => {
     const rec = registry.elementByFqn(fqn)!
     if (covered.has(rec.stableId)) { skipped++; return null }
-    const el = reloaded.model.element(fqn)
+    const el = model.element(fqn)
     const op: Operation = {
       op: 'add_element', id: rec.stableId, parent: rec.parentFqn ? registry.elementByFqn(rec.parentFqn)!.stableId : null,
       name: lastSegment(fqn), kind: rec.kind, title: el.title,
     }
     if (el.technology) op.technology = el.technology
     if (el.description?.text) op.description = el.description.text
-    if (el.tags.length) op.tags = [...el.tags]
-    const md = Object.fromEntries(Object.entries(el.getMetadata() as Record<string, string | string[]>).filter(([k, v]) => k !== STABLE_ID_KEY && typeof v === 'string')) as Record<string, string>
+    const tags = userTags(el.tags)
+    if (tags.length) op.tags = tags
+    const md = Object.fromEntries(Object.entries(el.getMetadata() as Record<string, string | string[]>).filter(([k, v]) => k !== STABLE_ID_KEY && !isReservedMetadataKey(k) && typeof v === 'string')) as Record<string, string>
     if (Object.keys(md).length) op.metadata = md
     return op
   }
@@ -159,11 +138,11 @@ export async function adoptExistingModel(dir: string, opts: AdoptOptions): Promi
     return op
   }
   const rootOf = (fqn: string) => fqn.split('.')[0]!
-  for (const root of reloaded.model.roots()) {
+  for (const root of model.roots()) {
     const ops: Operation[] = []
     const walk = (fqn: string) => {
       const op = elementOp(fqn); if (op) ops.push(op)
-      for (const c of reloaded.model.element(fqn).children()) walk(c.id)
+      for (const c of model.element(fqn).children()) walk(c.id)
     }
     walk(root.id)
     for (const r of registry.relationships()) {
@@ -177,26 +156,66 @@ export async function adoptExistingModel(dir: string, opts: AdoptOptions): Promi
   }
   if (cross.length) made.push(inferredChangeSet(`CHG-${next++}`, 'Inferred baseline: cross-boundary relationships', intent, cross, at, opts.actor))
 
-  for (const cs of made) {
+  // 3. Record the change sets, then regenerate the workspace with statuses derived from the ledger that now holds them.
+  const written: string[] = []
+  try {
     await mkdir(join(dir, CHANGES_DIR), { recursive: true })
-    await writeFile(join(dir, changeSetPath(cs.id)), serializeChangeSet(cs), 'utf8')
-  }
-  if (made.length) files.push(CHANGES_DIR)
-  if (!files.length) return { sha: headBefore, assignedIds: { elements: 0, relationships: 0 }, changeSets: [], skipped }
+    for (const cs of made) {
+      const path = changeSetPath(cs.id)
+      await writeFile(join(dir, path), serializeChangeSet(cs), 'utf8')
+      written.push(path)
+    }
+    const ledgerAfter = made.length ? await Ledger.load(dir, { tolerant: true }) : ledger
+    await finalizeBaseline(data, ledgerAfter)
+    const check = await generateAndCheck(data, ledgerAfter)
+    if (check.errors.length) throw new Error(`model does not regenerate cleanly; nothing written:\n  ${summarizeErrors(check.errors).join('\n  ')}`)
+    const files: string[] = []
+    if (!sameWorkspace(await readWorkspace(join(dir, MODEL_DIR)), check.files)) {
+      await writeWorkspace(join(dir, MODEL_DIR), check.files)
+      files.push(MODEL_DIR)
+    }
+    if (made.length) files.push(CHANGES_DIR)
+    if (!files.length) return { sha: headBefore, assignedIds: assigned, changeSets: [], skipped }
 
-  await git.exec(['add', '-A', '--', ...files])
-  const sha = await git.commit(
-    `bootstrap: adopt existing model (${made.length} inferred change set${made.length === 1 ? '' : 's'}, ${assignedElements + assignedRelationships} ids assigned)\n\n` +
-    made.map(c => `Change-Id: ${c.id}`).join('\n') + `\nActor: ${opts.actor}\n`,
-    { date: opts.date },
-  )
-  return { sha, assignedIds: { elements: assignedElements, relationships: assignedRelationships }, changeSets: made.map(c => ({ id: c.id, title: c.title, operations: c.operations.length })), skipped }
+    await git.exec(['add', '-A', '--', ...files])
+    const sha = await git.commit(
+      `bootstrap: adopt existing model (${made.length} inferred change set${made.length === 1 ? '' : 's'}, ${assigned.elements + assigned.relationships} ids assigned)\n\n` +
+      made.map(c => `Change-Id: ${c.id}`).join('\n') + `\nActor: ${opts.actor}\n`,
+      { date: opts.date },
+    )
+    return { sha, assignedIds: assigned, changeSets: made.map(c => ({ id: c.id, title: c.title, operations: c.operations.length })), skipped }
+  } catch (e) {
+    for (const path of written) await rm(join(dir, path), { force: true })
+    await git.exec(['checkout', '-q', '--', MODEL_DIR]).catch(() => {})
+    throw e
+  }
+}
+
+/** Give every element and relationship without a stable id one derived from its name. Returns the counts. */
+function assignStableIds(data: ParsedModelData): { elements: number; relationships: number } {
+  const taken = new Set<string>()
+  for (const el of Object.values<any>(data.elements)) if (el.metadata?.[STABLE_ID_KEY]) taken.add(String(el.metadata[STABLE_ID_KEY]))
+  for (const rel of Object.values<any>(data.relations)) if (rel.metadata?.[STABLE_ID_KEY]) taken.add(String(rel.metadata[STABLE_ID_KEY]))
+  const unique = (base: string) => { let id = base, n = 2; while (taken.has(id)) id = `${base}-${n++}`; taken.add(id); return id }
+  let elements = 0, relationships = 0
+  for (const [fqn, el] of Object.entries<any>(data.elements)) {
+    if (el.metadata?.[STABLE_ID_KEY]) continue
+    el.metadata = { ...(el.metadata ?? {}), [STABLE_ID_KEY]: unique('ent-' + slug(fqn)) }
+    elements++
+  }
+  for (const rel of Object.values<any>(data.relations)) {
+    if (rel.metadata?.[STABLE_ID_KEY]) continue
+    const from = slug(lastSegment(rel.source?.model ?? '')), to = slug(lastSegment(rel.target?.model ?? ''))
+    rel.metadata = { ...(rel.metadata ?? {}), [STABLE_ID_KEY]: unique(`rel-${from}-${slug(rel.kind ?? 'to')}-${to}`) }
+    relationships++
+  }
+  return { elements, relationships }
 }
 
 function inferredChangeSet(id: string, title: string, intent: string, operations: Operation[], at: string, actor: string): ChangeSet {
   return {
     id, title, intent, sources: [], depends_on: [], supersedes: [],
-    disposition: 'accepted', implementation: 'implemented', inferred: true,
+    disposition: 'accepted', inferred: true,
     operations, references: [],
     promotion: { at, baseline: 'pre-ledger', actor },
   }
@@ -213,10 +232,10 @@ function readme(name: string): string {
 
 Architecture model repository managed by [b4-after](https://github.com/borwood/b4-after).
 
-- \`model/\` LikeC4 DSL, machine-generated. Written only by promotion.
+- \`model/\` LikeC4 DSL, machine-generated. \`model.c4\` holds the specification and model, \`views.c4\` the generated views (As-is and Target folders). Written by promotion and reconciliation.
 - \`changes/\` one YAML record per logical change set.
 - \`evidence/\` append-only evidence per change set; verification is derived from it.
 
-Agents are the only writers. Humans get diagrams and summaries.
+Agents are the only writers. Humans get diagrams and summaries. Entities tagged \`b4-intended\` do not exist yet; \`b4-retiring\` ones still do.
 `
 }

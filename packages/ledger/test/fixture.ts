@@ -10,7 +10,7 @@ export const EXAMPLE_DIR = resolve(fileURLToPath(import.meta.url), '..', '..', '
 
 export const T1 = '2026-01-10T10:00:00+00:00' // model + CHG-037
 export const T2 = '2026-02-10T10:00:00+00:00' // CHG-042 proposed
-export const T3 = '2026-03-10T10:00:00+00:00' // CHG-042 accepted + in_progress, CHG-043 rejected
+export const T3 = '2026-03-10T10:00:00+00:00' // CHG-042 accepted, CHG-043 rejected
 
 export interface Fixture {
   dir: string
@@ -39,11 +39,10 @@ export async function makeRepo(): Promise<Fixture> {
   await git.add(['.'])
   const stage2 = await git.commit('propose CHG-042: Add asynchronous billing retries\n\nChange-Id: CHG-042\nActor: fixture\n', { date: T2 })
 
-  // Stage 3: CHG-042 revised (accepted, in progress) and CHG-043 recorded as rejected.
+  // Stage 3: CHG-042 revised (accepted) and CHG-043 recorded as rejected.
   const p42 = join(dir, 'changes', 'CHG-042.yaml')
   const v2 = (await readFile(p42, 'utf8'))
     .replace('disposition: proposed', 'disposition: accepted')
-    .replace('implementation: not_started', 'implementation: in_progress')
   await writeFile(p42, v2, 'utf8')
   await cp(join(EXAMPLE_DIR, 'changes', 'CHG-043.yaml'), join(dir, 'changes', 'CHG-043.yaml'))
   await git.add(['.'])

@@ -2,23 +2,25 @@
 // model and record the promotion on the change set, in one commit. Policy is explicit and narrow;
 // the write is verified by reloading the regenerated model before anything is committed.
 //
-// Decision (Phase C): the baseline is machine-generated DSL in model/model.c4. Promotion
-// regenerates that file from parsed data. Other .c4 files under model/ are removed on the first
-// promotion so the generated file is the only source.
-import { readdir, rm, writeFile, mkdir } from 'node:fs/promises'
+// The baseline must stay faithful to what exists. Additions and moves are applied at once and
+// marked intended or pending; updates and removals of existing entities are deferred until
+// evidence verifies them (see status.ts). The model files are machine-generated (workspace.ts).
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Git } from './git.js'
 import { IdentityRegistry } from './identity.js'
 import { Ledger, changeSetPath, serializeChangeSet, CHANGES_DIR } from './ledger.js'
-import { loadModel, roundTripCheck, MODEL_DIR } from './model.js'
-import { applyChangeSets, ProjectionError, type ProjectionIssue } from './projection.js'
+import { loadModel, modelFromParsedData, MODEL_DIR } from './model.js'
+import { applyChangeSets, ProjectionError, type Projection, type ProjectionIssue } from './projection.js'
 import { commitMessageFor } from './provenance.js'
-import type { ChangeSet, Disposition, Implementation } from './schema.js'
+import type { ChangeSet, Disposition, Implementation, Operation } from './schema.js'
+import { finalizeBaseline, intendedIds, markDeferred, markMoves, planPromotion, type AppliedOperation, type PromotionPlan } from './status.js'
+import { generateAndCheck, summarizeErrors, writeWorkspace } from './workspace.js'
 
 export interface PromotionPolicy {
   /** Dispositions eligible for promotion. Default ['accepted']. */
   dispositions?: Disposition[]
-  /** If set, implementation must be one of these. Default: no constraint (PRD: accepted does not mean implemented; promotion records declared architecture). */
+  /** If set, derived implementation must be one of these. Default: no constraint (PRD: accepted does not mean implemented; promotion records declared architecture). */
   implementations?: Implementation[]
 }
 
@@ -36,7 +38,13 @@ export interface PromoteResult {
   modelFile: string
   /** Stable ids now present in the baseline that were added by this change set. */
   added: string[]
+  /** Stable ids removed from the baseline by this promotion: verified or inferred removals, and removals of entities that were only intended. */
   removed: string[]
+  /** Operations recorded as pending on their targets, to be applied once verified. */
+  deferred: { entityId: string; op: Operation['op'] }[]
+  /** Earlier deferred operations that were verified in the meantime and applied by this promotion. */
+  reconciled: AppliedOperation[]
+  warnings: string[]
 }
 
 export class PromotionRefused extends Error {
@@ -69,8 +77,8 @@ export async function promoteChangeSet(repoDir: string, changeId: string, opts: 
   if (!dispositions.includes(cs.disposition)) {
     throw new PromotionRefused(`${changeId} is ${cs.disposition}; promotion requires one of: ${dispositions.join(', ')}`)
   }
-  if (policy.implementations && !policy.implementations.includes(cs.implementation)) {
-    throw new PromotionRefused(`${changeId} implementation is ${cs.implementation}; policy requires one of: ${policy.implementations.join(', ')}`)
+  if (policy.implementations && !policy.implementations.includes(rec.implementation)) {
+    throw new PromotionRefused(`${changeId} implementation is ${rec.implementation}; policy requires one of: ${policy.implementations.join(', ')}`)
   }
   for (const dep of cs.depends_on) {
     const d = ledger.get(dep)
@@ -80,44 +88,60 @@ export async function promoteChangeSet(repoDir: string, changeId: string, opts: 
 
   // Apply on the committed baseline, without highlight. Validation failures leave the repo untouched.
   const loaded = await loadModel(repoDir)
-  let projection
+  const baseline = { source: 'worktree' as const, revision: head }
+  const warnings: string[] = []
+  const intended = intendedIds(loaded.parsedData, IdentityRegistry.fromModel(loaded.model))
+  let plan = planPromotion(cs, rec.verification, intended)
+  let projection: Projection
   try {
-    projection = await applyChangeSets(loaded.parsedData, [cs], { baseline: { source: 'worktree', revision: head }, highlight: false, ledger })
+    projection = await applyChangeSets(loaded.parsedData, [{ ...cs, operations: plan.immediate }], { baseline, highlight: false, ledger })
   } catch (e) {
-    if (e instanceof ProjectionError) throw new PromotionRefused(`${changeId} does not apply cleanly to the baseline:\n  ${e.issues.map(i => `${i.path}: ${i.message}`).join('\n  ')}`, e.issues)
-    throw e
+    if (!(e instanceof ProjectionError) || !plan.deferred.length) throw refused(changeId, e)
+    // Deferring left the change set inconsistent (e.g. a name freed by a deferred removal is reused):
+    // apply everything now and say so, rather than refuse an accepted change.
+    warnings.push(`could not defer ${describe(plan.deferred)}: applied immediately although unverified (${e.issues.map(i => i.message).join('; ')})`)
+    plan = { immediate: cs.operations, deferred: [] }
+    try {
+      projection = await applyChangeSets(loaded.parsedData, [cs], { baseline, highlight: false, ledger })
+    } catch (e2) { throw refused(changeId, e2) }
   }
 
-  // Verify the regenerated DSL loads and every stable id survived, before writing into the repo.
-  const { dsl, errors } = await roundTripCheck(projection.data)
-  if (errors.length) throw new PromotionRefused(`regenerated model is invalid; baseline left unchanged:\n  ${errors.join('\n  ')}`)
-  const expectedIds = new Set([...projection.registry.elements(), ...projection.registry.relationships()].map(r => r.stableId))
-  const reloaded = IdentityRegistry.fromModel((await loadModelFromDsl(dsl)).model)
-  const survivors = new Set([...reloaded.elements(), ...reloaded.relationships()].map(r => r.stableId))
-  const lost = [...expectedIds].filter(id => !survivors.has(id))
+  const promoted: ChangeSet = { ...cs, promotion: { at: opts.date ?? new Date().toISOString(), baseline: head, actor: opts.actor } }
+  const data = projection.data
+  markDeferred(data, projection.registry, cs.id, plan.deferred)
+  markMoves(data, projection.diff.moved, cs, rec.verification, intended)
+  const final = await finalizeBaseline(data, ledger, { promoting: promoted })
+  warnings.push(...final.warnings)
+
+  // Verify the regenerated workspace loads and every stable id survived, before writing into the repo.
+  const check = await generateAndCheck(data, ledger)
+  if (check.errors.length) throw new PromotionRefused(`regenerated model is invalid; baseline left unchanged:\n  ${summarizeErrors(check.errors).join('\n  ')}`)
+  const expected = stableIds(IdentityRegistry.fromModel(await modelFromParsedData(data)))
+  const survivors = new Set(stableIds(IdentityRegistry.fromModel(check.loaded.model)))
+  const lost = expected.filter(id => !survivors.has(id))
   if (lost.length) throw new PromotionRefused(`stable ids lost in regeneration; baseline left unchanged: ${lost.join(', ')}`)
 
   // Write model + promotion record, commit atomically; restore on any failure.
   const modelDir = join(repoDir, MODEL_DIR)
-  const modelFile = join(modelDir, 'model.c4')
-  const promoted: ChangeSet = { ...cs, promotion: { at: opts.date ?? new Date().toISOString(), baseline: head, actor: opts.actor } }
   const recordPath = changeSetPath(cs.id)
   try {
-    await mkdir(modelDir, { recursive: true })
-    for (const f of await readdir(modelDir)) if (/\.c4$/i.test(f) && f !== 'model.c4') await rm(join(modelDir, f))
-    await writeFile(modelFile, dsl, 'utf8')
+    await writeWorkspace(modelDir, check.files)
     await writeFile(join(repoDir, recordPath), serializeChangeSet(promoted), 'utf8')
     await git.exec(['add', '-A', '--', MODEL_DIR, recordPath])
     const message = commitMessageFor(promoted, {
       actor: opts.actor,
+      implementation: rec.implementation,
       subject: `promote ${cs.id}: ${cs.title}`,
-      body: `Promoted-From: ${head}`,
+      body: [`Promoted-From: ${head}`, ...(plan.deferred.length ? [`Deferred: ${describe(plan.deferred)}`] : [])].join('\n'),
     })
     const sha = await git.commit(message, { date: opts.date })
     return {
-      changeId: cs.id, sha, baseline: head, modelFile,
+      changeId: cs.id, sha, baseline: head, modelFile: join(modelDir, 'model.c4'),
       added: projection.diff.added.map(a => a.entityId),
       removed: projection.diff.removed.map(r => r.entityId),
+      deferred: plan.deferred.map(op => ({ entityId: op.id, op: op.op })),
+      reconciled: final.applied,
+      warnings,
     }
   } catch (e) {
     await git.exec(['reset', '-q', '--', MODEL_DIR, recordPath]).catch(() => {})
@@ -127,15 +151,12 @@ export async function promoteChangeSet(repoDir: string, changeId: string, opts: 
   }
 }
 
-async function loadModelFromDsl(dsl: string) {
-  const { mkdtemp, writeFile: wf, rm: rmr } = await import('node:fs/promises')
-  const { tmpdir } = await import('node:os')
-  const dir = await mkdtemp(join(tmpdir(), 'b4-after-promote-'))
-  try {
-    await mkdir(join(dir, MODEL_DIR), { recursive: true })
-    await wf(join(dir, MODEL_DIR, 'model.c4'), dsl, 'utf8')
-    return await loadModel(dir)
-  } finally {
-    await rmr(dir, { recursive: true, force: true })
-  }
+function refused(changeId: string, e: unknown): unknown {
+  if (e instanceof ProjectionError) return new PromotionRefused(`${changeId} does not apply cleanly to the baseline:\n  ${e.issues.map(i => `${i.path}: ${i.message}`).join('\n  ')}`, e.issues)
+  return e
 }
+
+const describe = (ops: Operation[]) => ops.map(op => `${op.op} ${op.id}`).join(', ')
+const stableIds = (reg: IdentityRegistry) => [...reg.elements(), ...reg.relationships()].map(r => r.stableId)
+
+export type { PromotionPlan }
