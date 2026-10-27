@@ -60,8 +60,8 @@ All notable changes to b4-after. Both packages, `@borwood/b4-after` (MCP server 
 - Removing an element and adding another with the same name in one change set was rejected as a
   duplicate name.
 - Regenerating a model was not idempotent when the specification declared tags out of order.
-- The MCP package's `bin` entry used a `./` prefix that npm 12 removes on publish; the published
-  package would have had no `b4-after` executable.
+- The MCP package's `bin` entry used a `./` prefix that npm 12 rewrites on publish with a warning;
+  the source now matches the published manifest.
 
 ## [0.1.0] - 2026-10-26
 
