@@ -186,7 +186,8 @@ minute. The MCP tests drive the server in-process over a linked transport.
 ## Status
 
 Early. The tool surface, schema, and library API are usable and tested, and are being dogfooded
-on real projects. Expect breaking changes before 1.0. Drift detection between the model and the
+on real projects. Expect breaking changes before 1.0; [CHANGELOG.md](CHANGELOG.md) records them.
+Drift detection between the model and the
 running system is intentionally not built in; the intended shape is a producer of
 `runtime_observation` evidence, built against a concrete signal when one is needed.
 

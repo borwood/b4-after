@@ -152,6 +152,11 @@ const server = createServer(new RepoContext('/abs/path/architecture', { actor: '
 await server.connect(transport)   // any MCP server transport
 ```
 
+## Changelog
+
+Release notes for both packages live in the repository's
+[CHANGELOG.md](https://github.com/borwood/b4-after/blob/main/CHANGELOG.md).
+
 ## Development
 
 ```sh

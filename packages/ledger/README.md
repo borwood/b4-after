@@ -18,7 +18,7 @@ Chromium.
 
 ```
 <model repository>/
-  model/      LikeC4 DSL. Generated; written only by promotion and adoption.
+  model/      model.c4 and views.c4, generated LikeC4 DSL; written only by promotion, reconciliation and adoption.
   changes/    CHG-<n>.yaml, one logical change set per file, revised in place until promoted.
   evidence/   CHG-<n>.yaml, append-only evidence records per change set.
 ```
@@ -252,6 +252,11 @@ declared without a colour, and its generator writes them back in a form its pars
 returns one shared mutable instance; the library disposes LikeC4 services right after extracting
 a model and only ever projects on detached parsed data. More in the
 [LikeC4 notes](https://github.com/borwood/b4-after/blob/main/docs/likec4-findings.md).
+
+## Changelog
+
+Release notes for both packages live in the repository's
+[CHANGELOG.md](https://github.com/borwood/b4-after/blob/main/CHANGELOG.md).
 
 ## Development
 

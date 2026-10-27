@@ -35,7 +35,7 @@
     }
   },
   "bin": {
-    "b4-after": "./bin/b4-after.mjs"
+    "b4-after": "bin/b4-after.mjs"
   },
   "files": [
     "bin",
