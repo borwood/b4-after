@@ -1,6 +1,6 @@
 {
   "name": "@borwood/b4-after-ledger",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Library behind b4-after: change sets, stable identity, git provenance, candidate projections, governed promotion, evidence-derived verification, and storyOf() over a LikeC4 model repository",
   "license": "MIT",
   "author": "borwood",

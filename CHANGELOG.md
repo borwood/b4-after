@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-28
+
 ### Added
 
 - Metadata values may be lists of strings as well as strings, matching LikeC4
@@ -121,6 +123,7 @@ First public release, renamed from the `like-b4` prototype.
 - MCP server with seventeen bounded, compact tools; a relative model-repository path anchors to the
   main worktree so linked worktrees and subagents share one ledger.
 
-[Unreleased]: https://github.com/borwood/b4-after/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/borwood/b4-after/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/borwood/b4-after/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/borwood/b4-after/compare/0db645a...v0.2.0
 [0.1.0]: https://github.com/borwood/b4-after/commits/0db645a

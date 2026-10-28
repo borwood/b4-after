@@ -15,7 +15,7 @@ import { RepoContext } from './context.js'
 import { help, HELP_TOPICS } from './help.js'
 
 export const SERVER_NAME = 'b4-after'
-export const SERVER_VERSION = '0.2.0'
+export const SERVER_VERSION = '0.2.1'
 
 const short = (sha: string | null | undefined) => (sha ? sha.slice(0, 7) : null)
 
