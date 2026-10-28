@@ -107,8 +107,8 @@ export function createServer(ctx: RepoContext): McpServer {
   }))
 
   server.registerTool('search', {
-    description: 'Find elements by id, fqn, title, kind or tag (ranked, limit<=50)',
-    inputSchema: { query: z.string(), kinds: z.array(z.string()).optional(), tags: z.array(z.string()).optional(), limit: z.number().int().optional() },
+    description: 'Find elements by id, fqn, title, kind, tag or metadata (ranked, limit<=50); metadata={key: value} filters',
+    inputSchema: { query: z.string(), kinds: z.array(z.string()).optional(), tags: z.array(z.string()).optional(), metadata: z.record(z.string(), z.string()).optional(), limit: z.number().int().optional() },
   }, async (a) => guarded(async () => {
     const s = await ctx.snapshot()
     return ok(s.head, search(s, a))

@@ -127,7 +127,7 @@ failed) and, when operations are deferred, `b4_pending`. Reserved tags carry the
 `b4-intended` (added, unverified: does not exist yet; dashed and faded), `b4-retiring` (removal
 promoted, unverified: still exists; dotted and muted), `b4-pending-update` (current values shown),
 `b4-pending-move` (with `b4_moved_from`), `b4-failed`. Agents cannot set or erase them: validation
-rejects `b4-*` tags and `b4_*` metadata (`E_RESERVED_TAG`, `E_RESERVED_METADATA`) and tag
+rejects `b4-*` tags, `b4_*` metadata and `stable_id` (`E_RESERVED_TAG`, `E_RESERVED_METADATA`) and tag
 replacement keeps them. Building on a retiring element is allowed and warned (`W_RETIRING_TARGET`).
 
 `reconcileBaseline` applies every deferred operation whose change set is now verified for that
@@ -162,7 +162,7 @@ set is validated against the state the previous ones produced; overlapping write
 field by change sets with no `depends_on` between them fail with `E_CONFLICT`. Dependencies must
 be included or already promoted. Candidate additions and changes render amber with a dashed border
 and a `candidate` tag; pass `highlight: false` to skip. `update_*` merges (metadata keys patched,
-tags replaced); `move_element` rewrites fully-qualified names, relationship endpoints, and view
+`null` deletes a key; tags replaced); `move_element` rewrites fully-qualified names, relationship endpoints, and view
 rules; `remove_element` cascades to descendants, attached relationships, and view predicates.
 
 ## Evidence and verification

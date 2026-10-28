@@ -126,7 +126,7 @@ export async function adoptExistingModel(dir: string, opts: AdoptOptions): Promi
     if (el.description?.text) op.description = el.description.text
     const tags = userTags(el.tags)
     if (tags.length) op.tags = tags
-    const md = Object.fromEntries(Object.entries(el.getMetadata() as Record<string, string | string[]>).filter(([k, v]) => k !== STABLE_ID_KEY && !isReservedMetadataKey(k) && typeof v === 'string')) as Record<string, string>
+    const md = Object.fromEntries(Object.entries(el.getMetadata() as Record<string, string | string[]>).filter(([k, v]) => k !== STABLE_ID_KEY && !isReservedMetadataKey(k) && (typeof v === 'string' || Array.isArray(v))))
     if (Object.keys(md).length) op.metadata = md
     return op
   }

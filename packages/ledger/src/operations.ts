@@ -165,7 +165,8 @@ export interface PropertyPatch {
   description?: string | null
   technology?: string | null
   tags?: string[]
-  metadata?: Record<string, string>
+  /** Patched key by key; null deletes a key. */
+  metadata?: Record<string, string | string[] | null>
 }
 
 /**
@@ -188,7 +189,14 @@ export function patchProps(target: Record<string, any>, set: PropertyPatch) {
     if (tags.length) target.tags = tags
     else delete target.tags
   }
-  if (set.metadata !== undefined) target.metadata = { ...(target.metadata ?? {}), ...set.metadata }
+  if (set.metadata !== undefined) {
+    const md: Record<string, string | string[]> = { ...(target.metadata ?? {}) }
+    for (const [k, v] of Object.entries(set.metadata)) {
+      if (v === null) delete md[k]
+      else md[k] = v
+    }
+    target.metadata = md
+  }
 }
 
 export function uniq<T>(xs: T[]): T[] { return [...new Set(xs)] }

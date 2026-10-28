@@ -46,14 +46,14 @@ references = "this entity is relevant" with NO change to it and NO architectural
 Unknown fields are rejected. Neither verification nor implementation is a field: both are derived from evidence (implementation: not_started -> in_progress once any observation exists -> implemented once verified; inferred change sets count as implemented).`,
 
   operations: `Targets are stable ids. Order matters within a change set (later ops see earlier ones).
-- add_element { id, parent: <stable id>|null, name: <LikeC4 local name>, kind, title?, description?, technology?, tags?, metadata?, derived_from?: [ids] }
-- update_element { id, set: { title?, description?, technology?, tags?, metadata? } }  (merge: metadata keys patched, tags replaced, null clears)
+- add_element { id, parent: <stable id>|null, name: <LikeC4 local name>, kind, title?, description?, technology?, tags?, metadata?: { key: string | [strings] }, derived_from?: [ids] }
+- update_element { id, set: { title?, description?, technology?, tags?, metadata? } }  (merge: metadata keys patched, null deletes a key; tags replaced; null clears description/technology)
 - move_element { id, parent: <stable id>|null, name? }
 - remove_element { id, succeeded_by?: [ids] }  (cascades to descendants, attached relationships, view predicates)
 - add_relationship { id, from, to, kind?, title?, description?, technology?, tags?, metadata? }
 - update_relationship { id, set: {...} }
 - remove_relationship { id }
-Rules enforced by validate: kinds and tags must exist in the specification; name may not be a LikeC4 keyword (E_RESERVED_WORD: head, tail, title, kind, metadata, link, style, view, ... pick another local name, the stable id is unaffected); tags b4-* and metadata keys b4_* are reserved (help status); a relationship cannot connect an element with its own ancestor/descendant; no duplicate ids or names (moves included); no use after remove; dependencies must exist and not cycle.
+Rules enforced by validate: kinds and tags must exist in the specification; name may not be a LikeC4 keyword (E_RESERVED_WORD: head, tail, title, kind, metadata, link, style, view, ... pick another local name, the stable id is unaffected); tags b4-* and metadata keys b4_* and stable_id are reserved (help status); a relationship cannot connect an element with its own ancestor/descendant; no duplicate ids or names (moves included); no use after remove; dependencies must exist and not cycle.
 add_relationship makes from/to participants of the change set (for story) without editing them. Operating on a retiring element (removal promoted, not yet verified) is allowed and warned (W_RETIRING_TARGET).`,
 
   evidence: `Evidence record: { id: "ev-<slug>", kind: test|runtime_observation|deployment|code_review|manual_review, result: pass|fail|inconclusive,
@@ -105,7 +105,7 @@ Staging several change sets: propose/validate see unpromoted depends_on (help wo
 - Git worktrees: the model repository is one shared, linear ledger, not a branch of the code. A relative repoDir resolves against the main worktree of the surrounding code repository, so worktrees and subagents all hit the same ledger; never init a second one from a worktree. Record branch-local evidence with an environment (e.g. local, ci-pr) so qualify can be asked per environment.`,
 
   queries: `overview(): counts, roots (<=20), open change sets, head, identity problems.
-search(query, kinds?, tags?, limit<=50): ranked by id/fqn/title match.
+search(query, kinds?, tags?, metadata?: {key: value}, limit<=50): ranked by id/fqn/title/kind/tag/metadata match; the metadata filter keeps entities whose key equals or lists the value. Metadata is a flat map of string or [strings] values on each entity; use it for owners, repositories, tiers, external ids.
 expand(entity, depth<=5, relationships=direct|none, max_nodes<=200): descendants + relationships touching the included set.
 element(entity, qualify?): full details, incoming/outgoing, views, change sets touching it, tags and metadata (including b4_* status, help status).
 story(entity, subtree?, membership=current|ever, revision?, before?, environment?, limit<=100, cursor?, detail=summary|full): change sets involving the entity, oldest first, one hop of context. before=ISO time resolves to the last commit at or before it. subtree uses current descendants at that snapshot; membership=ever also includes everything a promoted change set ever added or moved under it (ledger-derived; pre-ledger moves are not seen).

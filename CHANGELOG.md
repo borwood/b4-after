@@ -7,12 +7,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+### Added
+
+- Metadata values may be lists of strings as well as strings, matching LikeC4
+  (`metadata: { owners: ['alice', 'bob'] }`).
+- `search` matches metadata values and takes a `metadata: { key: value }` filter, so "every
+  element owned by the payments team" is one call. Relationships are searched the same way.
+
 ### Changed
 
+- In `update_element` and `update_relationship`, a `null` metadata value deletes that key. Other
+  keys are still patched in place.
 - `b4-after-guide` skill and `help plan`: a slice that refines a planned entity should carry an
   `update_element` on it, so verifying the slice also proves the planned entity; referencing it
   from a relationship or as a parent does not. Reinstall the skill to pick this up:
   `npx -y @borwood/b4-after skill b4-after-guide`.
+
+### Fixed
+
+- An update could overwrite an entity's `stable_id` through `set.metadata`. It is now rejected as
+  reserved (`E_RESERVED_METADATA`).
 
 ## [0.2.0] - 2026-10-27
 

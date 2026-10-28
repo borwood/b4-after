@@ -83,6 +83,11 @@ describe('surface', () => {
     const s = await call(client, 'search', { query: 'billing', limit: 3 })
     expect(s.json.elements[0]).toMatchObject({ id: 'ent-billing', fqn: 'billing' })
     expect(s.json.truncated).toBe(true)
+    // Metadata is searchable as text and as a filter.
+    expect((await call(client, 'search', { query: 'payments-team' })).json.elements.map((e: any) => e.id)).toEqual(['ent-billing'])
+    const owned = await call(client, 'search', { query: '', metadata: { owner: 'payments-team' } })
+    expect(owned.json.elements.map((e: any) => e.id)).toEqual(['ent-billing'])
+    expect((await call(client, 'search', { query: '', metadata: { owner: 'nobody' } })).json.elements).toEqual([])
 
     const e = await call(client, 'expand', { entity: 'billing', depth: 2 })
     expect(e.json.entity.id).toBe('ent-billing')

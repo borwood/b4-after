@@ -77,7 +77,7 @@ were installed with.
 |---|---|
 | help | documentation by topic (start, ids, schema, operations, evidence, status, workflow, plan, concurrency, queries, policy, errors, adopt) |
 | overview | roots, counts, open change sets, head; says so when the repository is not initialised yet |
-| search | ranked element lookup by id, fqn, title, kind, tag |
+| search | ranked element lookup by id, fqn, title, kind, tag or metadata; filter by metadata key=value |
 | expand | descendants of an entity plus the relationships touching them |
 | element | one element in full; `qualify=true` adds derived verification |
 | story | change sets involving an entity or subtree, oldest first, paged; as of a revision or date |

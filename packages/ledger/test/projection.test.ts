@@ -87,6 +87,15 @@ describe('applyChangeSets (operation semantics)', () => {
     expect(p.registry.element('ent-invoice-ui')!.fqn).toBe('billing.invoice_ui')
   })
 
+  it('metadata values may be lists; null in an update deletes the key', async () => {
+    const p = await apply([{ id: 'CHG-202', title: 't', intent: 'i', operations: [
+      { op: 'update_element', id: 'ent-invoice-ui', set: { metadata: { owners: ['alice', 'bob'], tier: '2' } } },
+      { op: 'update_element', id: 'ent-billing', set: { metadata: { owner: null, repo: 'git@example/billing' } } },
+    ] }])
+    expect(p.model.element('billing.invoice_ui').getMetadata()).toEqual({ stable_id: 'ent-invoice-ui', owners: ['alice', 'bob'], tier: '2' })
+    expect(p.model.element('billing').getMetadata()).toEqual({ stable_id: 'ent-billing', repo: 'git@example/billing' })
+  })
+
   it('move_element rewrites FQNs, relationship endpoints and view rules', async () => {
     const p = await apply([{ id: 'CHG-201', title: 't', intent: 'i', operations: [
       { op: 'move_element', id: 'ent-billing-api', parent: null, name: 'api' },

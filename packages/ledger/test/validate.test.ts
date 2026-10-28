@@ -29,6 +29,14 @@ describe('validateChangeSet', () => {
     expect(r.ok).toBe(true)
   })
 
+  it('stable_id cannot be set or overwritten through metadata', () => {
+    const r = validateChangeSet({ ...base, operations: [
+      { op: 'add_element', id: 'ent-x', parent: null, name: 'x', kind: 'system', metadata: { stable_id: 'ent-other' } },
+      { op: 'update_element', id: 'ent-billing', set: { metadata: { stable_id: 'ent-other' } } },
+    ] }, { registry, ledger })
+    expect(r.issues.map(i => `${i.code}@${i.path}`)).toEqual(['E_RESERVED_METADATA@/operations/0/metadata/stable_id', 'E_RESERVED_METADATA@/operations/1/set/metadata/stable_id'])
+  })
+
   it('reports schema errors with paths', () => {
     const r = validateChangeSet({ ...base, operations: [{ op: 'add_element' }] }, { registry })
     expect(r.ok).toBe(false)

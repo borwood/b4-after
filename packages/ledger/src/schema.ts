@@ -13,7 +13,11 @@ export const LOCAL_NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/
 const stableId = z.string().regex(STABLE_ID, 'stable id: lowercase letters, digits, "-" or "_", starting with a letter')
 const changeId = z.string().regex(CHANGE_ID, 'change id must look like CHG-123')
 const localName = z.string().regex(LOCAL_NAME, 'invalid LikeC4 element name')
-const metadata = z.record(z.string(), z.string())
+/** LikeC4 metadata values: a string or a list of strings. */
+export const MetadataValue = z.union([z.string(), z.array(z.string())])
+const metadata = z.record(z.string(), MetadataValue)
+/** In updates, null deletes the key. */
+const metadataPatch = z.record(z.string(), MetadataValue.nullable())
 
 export const Disposition = z.enum(['draft', 'proposed', 'accepted', 'rejected', 'superseded'])
 /** Derived from evidence, never recorded: see deriveImplementation(). */
@@ -34,6 +38,9 @@ export const RelationshipProps = z.strictObject({
   tags: z.array(z.string()).optional(),
   metadata: metadata.optional(),
 })
+/** What update operations may set: properties, with metadata as a patch (null deletes a key). */
+export const ElementPatch = ElementProps.extend({ metadata: metadataPatch.optional() })
+export const RelationshipPatch = RelationshipProps.extend({ metadata: metadataPatch.optional() })
 
 export const AddElement = z.strictObject({
   op: z.literal('add_element'),
@@ -45,7 +52,7 @@ export const AddElement = z.strictObject({
   /** Lineage: entities this one was split or merged from. History only; no architectural edge. */
   derived_from: z.array(stableId).optional(),
 })
-export const UpdateElement = z.strictObject({ op: z.literal('update_element'), id: stableId, set: ElementProps })
+export const UpdateElement = z.strictObject({ op: z.literal('update_element'), id: stableId, set: ElementPatch })
 export const MoveElement = z.strictObject({
   op: z.literal('move_element'),
   id: stableId,
@@ -66,7 +73,7 @@ export const AddRelationship = z.strictObject({
   kind: z.string().min(1).optional(),
   ...RelationshipProps.shape,
 })
-export const UpdateRelationship = z.strictObject({ op: z.literal('update_relationship'), id: stableId, set: RelationshipProps })
+export const UpdateRelationship = z.strictObject({ op: z.literal('update_relationship'), id: stableId, set: RelationshipPatch })
 export const RemoveRelationship = z.strictObject({ op: z.literal('remove_relationship'), id: stableId })
 
 export const Operation = z.discriminatedUnion('op', [
@@ -116,6 +123,7 @@ export const ChangeSet = z.strictObject({
   inferred: z.boolean().optional(),
 })
 
+export type MetadataValue = z.infer<typeof MetadataValue>
 export type Promotion = z.infer<typeof Promotion>
 export type Disposition = z.infer<typeof Disposition>
 export type Implementation = z.infer<typeof Implementation>

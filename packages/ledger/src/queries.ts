@@ -2,10 +2,10 @@
 // Every result is compact and capped; nothing here walks the whole graph by default.
 import type { LikeC4Model } from '@likec4/core/model'
 import type { ElementModel } from '@likec4/core/model'
-import { IdentityRegistry } from './identity.js'
+import { IdentityRegistry, STABLE_ID_KEY } from './identity.js'
 import type { Ledger } from './ledger.js'
 import type { ParsedModelData } from './model.js'
-import { flagsOfTags, isReservedTag, type StatusFlag } from './reserved.js'
+import { flagsOfTags, isReservedMetadataKey, isReservedTag, type StatusFlag } from './reserved.js'
 
 export interface Snapshot {
   model: LikeC4Model
@@ -91,20 +91,41 @@ export function overview(s: Snapshot, opts: { maxRoots?: number; maxOpen?: numbe
   }
 }
 
-export interface SearchOptions { query: string; kinds?: string[]; tags?: string[]; limit?: number }
+export interface SearchOptions {
+  query: string
+  kinds?: string[]
+  tags?: string[]
+  /** Keep only entities whose metadata has every key with that value (a list value matches when it contains it). */
+  metadata?: Record<string, string>
+  limit?: number
+}
 export interface SearchResult { elements: ElementRow[]; relationships: RelationshipRow[]; truncated: boolean }
+
+type Metadata = Record<string, string | string[]>
+/** User metadata as searchable text: each value, and key=value. Identity and status keys are left out. */
+function metadataText(md: Metadata): string[] {
+  return Object.entries(md)
+    .filter(([k]) => k !== STABLE_ID_KEY && !isReservedMetadataKey(k))
+    .flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).flatMap(x => [x, `${k}=${x}`]))
+}
+function hasMetadata(md: Metadata, wanted: Record<string, string>): boolean {
+  return Object.entries(wanted).every(([k, v]) => { const cur = md[k]; return Array.isArray(cur) ? cur.includes(v) : cur === v })
+}
 
 export function search(s: Snapshot, opts: SearchOptions): SearchResult {
   const q = opts.query.trim().toLowerCase()
   const limit = Math.max(1, Math.min(opts.limit ?? 10, 50))
   const kinds = opts.kinds?.length ? new Set(opts.kinds) : null
   const tags = opts.tags?.length ? opts.tags : null
+  const meta = opts.metadata && Object.keys(opts.metadata).length ? opts.metadata : null
   const scored: { score: number; el: ElementModel }[] = []
   for (const el of s.model.elements()) {
     if (kinds && !kinds.has(el.kind)) continue
     if (tags && !tags.every(t => el.isTagged(t))) continue
+    const md = el.getMetadata() as Metadata
+    if (meta && !hasMetadata(md, meta)) continue
     const sid = s.registry.elementByFqn(el.id)?.stableId ?? ''
-    const hay = [sid, el.id, el.title, el.kind, ...el.tags].map(x => x.toLowerCase())
+    const hay = [sid, el.id, el.title, el.kind, ...el.tags, ...metadataText(md)].map(x => x.toLowerCase())
     let score = 0
     if (!q) score = 1
     else if (sid.toLowerCase() === q || el.id.toLowerCase() === q) score = 100
@@ -115,10 +136,13 @@ export function search(s: Snapshot, opts: SearchOptions): SearchResult {
   }
   scored.sort((a, b) => b.score - a.score || a.el.id.localeCompare(b.el.id))
   const relationships: RelationshipRow[] = []
-  if (q && !kinds && !tags) {
+  if ((q || meta) && !kinds && !tags) {
     for (const r of s.model.relationships()) {
+      const md = r.getMetadata() as Metadata
+      if (meta && !hasMetadata(md, meta)) continue
       const sid = s.registry.relationshipByRelationId(r.id)?.stableId ?? ''
-      if (sid.toLowerCase().includes(q) || (r.title ?? '').toLowerCase().includes(q)) relationships.push(relationshipRow(s, r))
+      const hay = [sid, r.title ?? '', ...metadataText(md)].map(x => x.toLowerCase())
+      if (!q || hay.some(h => h.includes(q))) relationships.push(relationshipRow(s, r))
       if (relationships.length >= limit) break
     }
   }

@@ -2,7 +2,7 @@
 // Phase A findings this covers that LikeC4 does not: unknown relationship kinds are accepted silently
 // by the builder; the ancestor/descendant relationship ban surfaces as an opaque error.
 import { ChangeSet, normalizeChangeSetInput, type ChangeSet as ChangeSetT } from './schema.js'
-import { IdentityRegistry } from './identity.js'
+import { IdentityRegistry, STABLE_ID_KEY } from './identity.js'
 import type { Ledger } from './ledger.js'
 import { DEPRECATED_CHANGE_SET_FIELDS, TAG, isLikeC4ReservedWord, isReservedMetadataKey, isReservedTag } from './reserved.js'
 
@@ -83,8 +83,11 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
   const checkName = (name: string, path: string) => {
     if (isLikeC4ReservedWord(name)) err('E_RESERVED_WORD', path, `"${name}" is a LikeC4 keyword and cannot be an element name; pick another local name (the stable id is unaffected)`)
   }
-  const checkMetadata = (md: Record<string, string> | undefined, path: string) => {
-    for (const k of Object.keys(md ?? {})) if (isReservedMetadataKey(k)) err('E_RESERVED_METADATA', `${path}/${k}`, `metadata key "${k}" is reserved: b4-after derives status metadata from evidence; it cannot be set`)
+  const checkMetadata = (md: Record<string, unknown> | undefined, path: string) => {
+    for (const k of Object.keys(md ?? {})) {
+      if (k === STABLE_ID_KEY) err('E_RESERVED_METADATA', `${path}/${k}`, `metadata key "${k}" is the entity's identity, written by b4-after from the operation id; it cannot be set`)
+      else if (isReservedMetadataKey(k)) err('E_RESERVED_METADATA', `${path}/${k}`, `metadata key "${k}" is reserved: b4-after derives status metadata from evidence; it cannot be set`)
+    }
   }
   /** An element whose removal is promoted but not yet verified still exists; building on it deserves a note. */
   const warnIfRetiring = (id: string, path: string, what: string) => {
