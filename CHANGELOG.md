@@ -7,6 +7,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+### Changed
+
+- `b4-after-guide` skill and `help plan`: a slice that refines a planned entity should carry an
+  `update_element` on it, so verifying the slice also proves the planned entity; referencing it
+  from a relationship or as a parent does not. Reinstall the skill to pick this up:
+  `npx -y @borwood/b4-after skill b4-after-guide`.
+
 ## [0.2.0] - 2026-10-27
 
 ### Upgrading

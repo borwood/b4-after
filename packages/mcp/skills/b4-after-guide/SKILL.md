@@ -118,7 +118,14 @@ invisible to `search`, `expand` and `element`, has no views, and is overwritten 
    a new change set**: `record_evidence change_id=<plan> targets=[ids built] code_revision=<sha>`.
    A task that refines the plan (components inside a planned container, new relationships) is a
    change set with `depends_on` the plan layer; its additions are intended until its own evidence
-   arrives.
+   arrives. Make such a slice **operate on the planned entities it realises**: add an
+   `update_element` on each one (the real technology, a sharper description), not only relationships
+   to it. An entity stops being intended as soon as any promoted operation on it is verified, so
+   verifying the slice's own change set then proves the planned entities too, and nothing has to be
+   routed back to the plan. Merely referencing a planned entity, as a relationship endpoint or as a
+   parent, proves nothing about it: the relationship or child becomes real while the entity stays
+   `b4-intended`, and evidence on the slice that names that entity is rejected because the slice
+   does not operate on it.
 4. **Fork when the design changes.** A new change set that updates, moves or removes the planned
    entities, with `sources` pointing at the decision. Because those entities are intended, the
    change applies at once and the Target views show only the current plan. The `story` of any
