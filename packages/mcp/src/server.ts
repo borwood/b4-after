@@ -51,6 +51,9 @@ const renderInput = {
   views: z.array(z.string()).optional(),
 }
 type RenderInput = { render?: typeof RENDER_FORMATS[number]; out_dir?: string; views?: string[] }
+type SourceMatch =
+  | { via: 'source'; role: string; ref: string }
+  | { via: 'evidence'; evidence: string; kind: string; result: string; ref: string }
 
 /** Render `target` as requested and add the result to `base` (dsl text, or the files written). */
 async function rendered(base: Record<string, unknown>, target: Renderable, a: RenderInput, ledger?: Ledger): Promise<Record<string, unknown>> {
@@ -155,12 +158,27 @@ export function createServer(ctx: RepoContext): McpServer {
   }))
 
   server.registerTool('changes', {
-    description: 'List change sets, filterable by disposition, promoted, or entity',
-    inputSchema: { disposition: z.enum(['draft', 'proposed', 'accepted', 'rejected', 'superseded']).optional(), promoted: z.boolean().optional(), entity: z.string().optional(), limit: z.number().int().optional() },
+    description: 'List change sets, filterable by disposition, promoted, entity, or source ref (sources and evidence)',
+    inputSchema: {
+      disposition: z.enum(['draft', 'proposed', 'accepted', 'rejected', 'superseded']).optional(), promoted: z.boolean().optional(), entity: z.string().optional(),
+      source: z.string().optional(), source_match: z.enum(['exact', 'contains']).optional(), limit: z.number().int().optional(),
+    },
   }, async (a) => guarded(async () => {
     const s = await ctx.snapshot()
     const limit = Math.max(1, Math.min(a.limit ?? 50, 200))
     let recs = s.ledger.all()
+    const matchedBy = new Map<string, SourceMatch[]>()
+    if (a.source !== undefined) {
+      const hits = (ref: string) => a.source_match === 'contains' ? ref.includes(a.source!) : ref === a.source
+      for (const r of recs) {
+        const m: SourceMatch[] = [
+          ...r.changeSet.sources.filter(x => hits(x.ref)).map(x => ({ via: 'source' as const, role: x.role, ref: x.ref })),
+          ...r.evidence.filter(x => hits(x.source_ref)).map(x => ({ via: 'evidence' as const, evidence: x.id, kind: x.kind, result: x.result, ref: x.source_ref })),
+        ]
+        if (m.length) matchedBy.set(r.changeSet.id, m)
+      }
+      recs = recs.filter(r => matchedBy.has(r.changeSet.id))
+    }
     if (a.disposition) recs = recs.filter(r => r.changeSet.disposition === a.disposition)
     if (a.promoted !== undefined) recs = recs.filter(r => !!r.changeSet.promotion === a.promoted)
     if (a.entity) {
@@ -175,6 +193,7 @@ export function createServer(ctx: RepoContext): McpServer {
         change: r.changeSet.id, title: r.changeSet.title, when: r.firstRecordedAt?.slice(0, 10) ?? null,
         state: `${r.changeSet.disposition}/${r.implementation}/${r.verification.status}${r.changeSet.promotion ? '/promoted' : ''}`,
         targets: [...new Set(r.changeSet.operations.map(o => o.id))], ...(r.changeSet.depends_on.length ? { depends_on: r.changeSet.depends_on } : {}),
+        ...(matchedBy.has(r.changeSet.id) ? { matched: matchedBy.get(r.changeSet.id) } : {}),
       })),
     })
   }))

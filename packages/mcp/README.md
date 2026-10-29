@@ -81,7 +81,7 @@ were installed with.
 | expand | descendants of an entity plus the relationships touching them |
 | element | one element in full; `qualify=true` adds derived verification |
 | story | change sets involving an entity or subtree, oldest first, paged; as of a revision or date |
-| changes | list change sets by disposition, promotion, or entity |
+| changes | list change sets by disposition, promotion, entity, or source ref (change-set sources and evidence) |
 | change | one change set with commits, derived verification, and optionally its evidence |
 | validate | dry-run a change set against the baseline and ledger, with unpromoted `depends_on` projected first |
 | propose | validate the same way and record a change set as proposed or draft; never touches the model |

@@ -7,6 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+### Added
+
+- `changes` takes a `source` filter: the ref of an issue, PR, CI run or deployment. It matches
+  change-set `sources[].ref` and evidence `source_ref`, so "which change sets relate to this
+  link" is one call. Each row says what matched (`matched: [{via: source, role, ref}]` or
+  `{via: evidence, evidence, kind, result, ref}`). Matching is exact unless
+  `source_match=contains`, for a PR number or issue key inside a URL that may be written in
+  several forms.
+
 ## [0.2.1] - 2026-10-28
 
 ### Added

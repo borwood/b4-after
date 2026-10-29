@@ -123,6 +123,23 @@ describe('surface', () => {
     const prod = await call(client, 'change', { change_id: 'CHG-037', environment: 'production' })
     expect(prod.json.verification.status).toBe('unverified')
   })
+
+  it('changes by source ref: change-set sources and evidence, exact or contains', async () => {
+    const req = await call(client, 'changes', { source: 'https://example.test/issues/238' })
+    expect(req.json.changes).toHaveLength(1)
+    expect(req.json.changes[0]).toMatchObject({ change: 'CHG-042', matched: [{ via: 'source', role: 'requirement', ref: 'https://example.test/issues/238' }] })
+    expect(req.json.changes[0].matched).toHaveLength(1) // the #acceptance-criteria ref is not an exact match
+    const ev = await call(client, 'changes', { source: 'https://example.test/pulls/412' })
+    expect(ev.json.changes.map((c: any) => c.change)).toEqual(['CHG-037'])
+    expect(ev.json.changes[0].matched).toEqual([{ via: 'evidence', evidence: 'ev-037-review', kind: 'code_review', result: 'pass', ref: 'https://example.test/pulls/412' }])
+    const contains = await call(client, 'changes', { source: 'issues/238', source_match: 'contains' })
+    expect(contains.json.changes[0].matched.map((m: any) => m.role)).toEqual(['requirement', 'acceptance_criteria'])
+    const all = await call(client, 'changes', { source: 'example.test', source_match: 'contains' })
+    expect(all.json.changes.map((c: any) => c.change)).toEqual(['CHG-037', 'CHG-042', 'CHG-043'])
+    expect(all.json.changes[0].matched.map((m: any) => m.via)).toEqual(['source', 'evidence', 'evidence'])
+    expect((await call(client, 'changes', { source: 'https://nowhere.test/1' })).json).toMatchObject({ total: 0, changes: [] })
+    expect((await call(client, 'changes', { disposition: 'proposed' })).json.changes[0].matched).toBeUndefined()
+  })
 })
 
 describe('guidance', () => {
