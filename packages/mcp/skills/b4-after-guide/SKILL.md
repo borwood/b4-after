@@ -139,8 +139,9 @@ if it verified anything; set `implementation` or any `b4-*` tag yourself.
 
 ## Day-to-day loops
 
-- **Before changing code**: `search` or `expand` the area, `element <id> qualify=true` for the
-  parts you will touch. A `pending` list on a row means the entity is not exactly as drawn; read
+- **Before changing code**: `locate <id>` when you were handed an entity id, to see it in full,
+  what it relates to and every container up to the root; otherwise `search` or `expand` the
+  area. Then `element <id> qualify=true` for the parts you will touch. A `pending` list on a row means the entity is not exactly as drawn; read
   `b4_change` to find the change set and `change <id>` for what is still unproven.
 - **When the architecture will change**: draft the change set from the requirement, `validate`,
   `project render=dsl` (or `html` for a person), `propose`. Promotion is a reviewer's call.

@@ -9,12 +9,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ### Added
 
+- `locate` tool: one grounding read for an agent handed an entity id. It returns the element in
+  full, every entity it has a direct relationship with (medium detail, placed by the nearest shared
+  container and the path below it), and each container up to the root with its peers split into
+  those whose subtree connects to the entity's subtree (medium detail with the connecting
+  relationships) and the rest (id, kind, title). A relationship id works too: the relationship in
+  full with its source as the focus. Every list is capped (`max_peers`, `max_relationships`).
 - `changes` takes a `source` filter: the ref of an issue, PR, CI run or deployment. It matches
   change-set `sources[].ref` and evidence `source_ref`, so "which change sets relate to this
   link" is one call. Each row says what matched (`matched: [{via: source, role, ref}]` or
   `{via: evidence, evidence, kind, result, ref}`). Matching is exact unless
   `source_match=contains`, for a PR number or issue key inside a URL that may be written in
   several forms.
+
+### Changed
+
+- **Breaking**: `element` no longer lists every change set id that ever touched the entity. That
+  list grew with history times connectivity, so a hub element in a long-lived repository could
+  carry hundreds of ids on the call agents make most. `changeSets` is now a summary: `total`,
+  `promoted`, `byDisposition`, and `open` (proposed or accepted, not promoted, capped at 20
+  with `openTruncated`). For the history use `story entity=<id>`, which is paged, or
+  `changes entity=<id>`.
 
 ## [0.2.1] - 2026-10-28
 

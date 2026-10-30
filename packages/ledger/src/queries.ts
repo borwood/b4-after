@@ -196,7 +196,33 @@ export interface ElementDetail extends Omit<ElementRow, 'children'> {
   incoming: RelationshipRow[]
   outgoing: RelationshipRow[]
   views: string[]
-  changeSets: string[]
+  /** Change sets touching the element or an attached relationship: counts, plus the ids of the open ones (proposed or accepted, not promoted). History is story's job. */
+  changeSets: ChangeSetSummary
+}
+
+export interface ChangeSetSummary {
+  total: number
+  promoted: number
+  byDisposition: Record<string, number>
+  /** Proposed or accepted and not yet promoted: pending intent on the entity. Sorted by id, capped. */
+  open: string[]
+  openTruncated: boolean
+}
+
+export function summarizeChangeSets(s: Snapshot, ids: Iterable<string>, maxOpen = 20): ChangeSetSummary {
+  const out: ChangeSetSummary = { total: 0, promoted: 0, byDisposition: {}, open: [], openTruncated: false }
+  const open: string[] = []
+  for (const id of [...ids].sort()) {
+    const r = s.ledger.get(id)
+    if (!r) continue
+    out.total++
+    out.byDisposition[r.changeSet.disposition] = (out.byDisposition[r.changeSet.disposition] ?? 0) + 1
+    if (r.changeSet.promotion) out.promoted++
+    else if (r.changeSet.disposition === 'proposed' || r.changeSet.disposition === 'accepted') open.push(id)
+  }
+  out.open = open.slice(0, maxOpen)
+  out.openTruncated = open.length > maxOpen
+  return out
 }
 
 export function elementDetail(s: Snapshot, entity: string): ElementDetail | null {
@@ -217,6 +243,6 @@ export function elementDetail(s: Snapshot, entity: string): ElementDetail | null
     incoming: [...el.incoming()].map(r => relationshipRow(s, r)),
     outgoing: [...el.outgoing()].map(r => relationshipRow(s, r)),
     views: [...el.views()].map(v => v.id),
-    changeSets: [...s.ledger.changeIdsFor([...(sid ? [sid] : []), ...attached])].sort(),
+    changeSets: summarizeChangeSets(s, s.ledger.changeIdsFor([...(sid ? [sid] : []), ...attached])),
   }
 }

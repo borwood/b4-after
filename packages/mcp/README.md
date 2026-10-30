@@ -80,6 +80,7 @@ were installed with.
 | search | ranked element lookup by id, fqn, title, kind, tag or metadata; filter by metadata key=value |
 | expand | descendants of an entity plus the relationships touching them |
 | element | one element in full; `qualify=true` adds derived verification |
+| locate | ground around an entity in one call: full detail, related entities, then each container up to the root with connected and other peers |
 | story | change sets involving an entity or subtree, oldest first, paged; as of a revision or date |
 | changes | list change sets by disposition, promotion, entity, or source ref (change-set sources and evidence) |
 | change | one change set with commits, derived verification, and optionally its evidence |

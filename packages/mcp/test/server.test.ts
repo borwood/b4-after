@@ -48,10 +48,10 @@ beforeAll(async () => {
 afterAll(async () => { await client.close(); await rm(dir, { recursive: true, force: true }) })
 
 describe('surface', () => {
-  it('exposes 19 tools with a small token footprint, and help on demand', async () => {
+  it('exposes 20 tools with a small token footprint, and help on demand', async () => {
     const tools = (await client.listTools()).tools
     expect(tools.map(t => t.name).sort()).toEqual([
-      'bootstrap', 'change', 'changes', 'element', 'expand', 'help', 'overview', 'project', 'promote', 'propose', 'qualify', 'reconcile', 'record_evidence', 'releases', 'render', 'search', 'set_disposition', 'story', 'validate',
+      'bootstrap', 'change', 'changes', 'element', 'expand', 'help', 'locate', 'overview', 'project', 'promote', 'propose', 'qualify', 'reconcile', 'record_evidence', 'releases', 'render', 'search', 'set_disposition', 'story', 'validate',
     ])
     const bytes = JSON.stringify(tools).length
     expect(bytes).toBeLessThan(14_000) // roughly 3.5k tokens for the whole tool list
@@ -95,7 +95,9 @@ describe('surface', () => {
     expect(e.json.relationships.map((r: any) => r.id).sort()).toEqual(['rel-charges-cards', 'rel-charges-persist-ledger-db', 'rel-customer-views-invoices', 'rel-invoice-ui-calls-billing-api'])
 
     const d = await call(client, 'element', { entity: 'ent-charges', qualify: true })
-    expect(d.json).toMatchObject({ id: 'ent-charges', fqn: 'billing.billing_api.charges', parent: 'ent-billing-api', changeSets: ['CHG-037', 'CHG-043'] })
+    expect(d.json).toMatchObject({ id: 'ent-charges', fqn: 'billing.billing_api.charges', parent: 'ent-billing-api' })
+    expect(d.json.changeSets).toEqual({ total: 2, promoted: 1, byDisposition: { accepted: 1, rejected: 1 }, open: [], openTruncated: false })
+    expect((await call(client, 'element', { entity: 'ent-billing-api' })).json.changeSets.open).toEqual(['CHG-042'])
     expect(d.json.outgoing.map((r: any) => r.to).sort()).toEqual(['ent-ledger-db', 'ent-payment-gateway'])
     expect(d.json.qualification).toMatchObject({ status: 'unrecorded' })
 
@@ -112,6 +114,45 @@ describe('surface', () => {
     const full = await call(client, 'story', { entity: 'ent-billing-api', detail: 'full' })
     expect(full.json.story.entries[0].operations).toHaveLength(2)
     expect(full.json.story.entries[0].evidence.derivation.status).toBe('unverified')
+  })
+
+  it('locate grounds an agent around an entity in one call', async () => {
+    const r = await call(client, 'locate', { entity: 'ent-charges' })
+    expect(r.json.focus).toMatchObject({ id: 'ent-charges', parent: 'ent-billing-api', description: null, views: expect.any(Array) })
+    expect(r.json.relationship).toBeUndefined()
+    // Related: a datastore one level up inside billing, and an external system that shares no container.
+    expect(r.json.related.map((x: any) => [x.id, x.under, x.path.map((p: any) => p.id)])).toEqual([
+      ['ent-ledger-db', 'ent-billing', []],
+      ['ent-payment-gateway', null, []],
+    ])
+    expect(r.json.related[0]).toMatchObject({ kind: 'datastore', relationships: [{ id: 'rel-charges-persist-ledger-db', from: 'ent-charges', to: 'ent-ledger-db' }], relationshipsTruncated: false })
+    expect(r.json.relatedTruncated).toBe(false)
+    // Levels: billing_api (charges has no peers), billing (api connects to ui and db), roots (billing connects to customer and gateway).
+    expect(r.json.levels.map((l: any) => [l.container?.id ?? null, l.connected.map((c: any) => c.id), l.other.map((o: any) => o.id)])).toEqual([
+      ['ent-billing-api', [], []],
+      ['ent-billing', ['ent-invoice-ui', 'ent-ledger-db'], []],
+      [null, ['ent-customer', 'ent-payment-gateway'], []],
+    ])
+    expect(r.json.levels[0].container).toMatchObject({ id: 'ent-billing-api', children: 1, incoming: [{ id: 'rel-invoice-ui-calls-billing-api' }], changeSets: { open: ['CHG-042'] } })
+    expect(r.json.levels[1].connected[0]).toMatchObject({ id: 'ent-invoice-ui', relationships: [{ id: 'rel-invoice-ui-calls-billing-api' }] })
+    expect(r.json.levels[2].connected.map((c: any) => c.relationships.map((x: any) => x.id))).toEqual([['rel-customer-views-invoices'], ['rel-charges-cards']])
+
+    // From a root: every other root is a peer, connected or not; a related entity deep in another root carries its path.
+    const top = await call(client, 'locate', { entity: 'ent-payment-gateway' })
+    expect(top.json.levels).toHaveLength(1)
+    expect(top.json.levels[0]).toMatchObject({ container: null, connected: [{ id: 'ent-billing' }], other: [{ id: 'ent-customer' }] })
+    expect(top.json.related[0]).toMatchObject({ id: 'ent-charges', under: null, path: [{ id: 'ent-billing' }, { id: 'ent-billing-api' }] })
+
+    // A relationship id: the relationship in full, its source as focus, its target among related.
+    const rel = await call(client, 'locate', { entity: 'rel-charges-cards' })
+    expect(rel.json.relationship).toMatchObject({ id: 'rel-charges-cards', from: 'ent-charges', to: 'ent-payment-gateway', kind: 'uses' })
+    expect(rel.json.focus.id).toBe('ent-charges')
+    expect(rel.json.related.map((x: any) => x.id)).toContain('ent-payment-gateway')
+
+    // Caps are honoured and reported.
+    const capped = await call(client, 'locate', { entity: 'ent-billing', max_peers: 1 })
+    expect(capped.json.levels[0]).toMatchObject({ connected: [{ id: 'ent-customer' }], connectedTruncated: true })
+    expect((await call(client, 'locate', { entity: 'nope' })).json.code).toBe('NOT_FOUND')
   })
 
   it('changes and change', async () => {

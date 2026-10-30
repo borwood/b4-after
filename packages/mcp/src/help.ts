@@ -15,14 +15,14 @@ Topics (help topic=<name>):
 - workflow: propose -> accept -> promote -> evidence -> reconcile; what each write does and refuses
 - plan: planning ahead of building; layering change sets; how in-progress work shows in the model
 - concurrency: several agents at once; head, expected_head, locks
-- queries: bounded reads (overview, search, expand, element, story, changes, change, project, qualify, render)
+- queries: bounded reads (overview, search, expand, element, locate, story, changes, change, project, qualify, render)
 - policy: promotion and verification policies
 - errors: error codes and what to do
 - adopt: bringing an existing system into the ledger`
 
 const TOPICS: Record<HelpTopic, string> = {
   start: `1. overview -> roots, counts, open change sets, head.
-2. search / expand / element -> find the entities you need (depth 1 by default; raise depth or max_nodes only if needed). Rows carry pending=[intended|retiring|pending_update|pending_move|failed] when an entity is not exactly as shown (help status).
+2. search / expand / element -> find the entities you need (depth 1 by default; raise depth or max_nodes only if needed). Given one id to work on, locate entity=<id> grounds you in a single call: the entity in full, what it relates to, and every container up to the root with its peers. Rows carry pending=[intended|retiring|pending_update|pending_move|failed] when an entity is not exactly as shown (help status).
 3. story entity=<id> -> what changed around it and why (change sets, roles, sources). Add subtree=true for a container. Planning a project or a feature before building it: help plan.
 4. Draft a change set (help schema, help operations) -> validate -> propose (actor=<your name>).
 5. project changes=[<ids>] render=dsl to inspect the candidate; render=html for a person (interactive site). Promotion needs disposition=accepted (set_disposition) and is the only write into model/.
@@ -107,7 +107,8 @@ Staging several change sets: propose/validate see unpromoted depends_on (help wo
   queries: `overview(): counts, roots (<=20), open change sets, head, identity problems.
 search(query, kinds?, tags?, metadata?: {key: value}, limit<=50): ranked by id/fqn/title/kind/tag/metadata match; the metadata filter keeps entities whose key equals or lists the value. Metadata is a flat map of string or [strings] values on each entity; use it for owners, repositories, tiers, external ids.
 expand(entity, depth<=5, relationships=direct|none, max_nodes<=200): descendants + relationships touching the included set.
-element(entity, qualify?): full details, incoming/outgoing, views, change sets touching it, tags and metadata (including b4_* status, help status).
+element(entity, qualify?): full details, incoming/outgoing, views, tags and metadata (including b4_* status, help status). changeSets = counts by disposition plus the ids of open change sets (proposed or accepted, not promoted: pending intent on the entity); the full history is story's job.
+locate(entity, max_peers<=100, max_relationships<=50): one grounding read. focus = the element in full (a relationship id gives the relationship plus its source as focus). related = every entity with a direct relationship to the focus, medium detail (description, technology, tags, status, the connecting relationships) with under=<nearest shared container> and path=[containers between it and the entity] so each can be placed; nearest first. levels = nearest container first up to the roots (container=null): the container in full (children as a count; the level below lists them), connected = peers whose subtree has a relationship into the subtree of the member below (medium detail with those relationships), other = the remaining peers (id, kind, title, children count). Every list is capped and reports *Truncated.
 story(entity, subtree?, membership=current|ever, revision?, before?, environment?, limit<=100, cursor?, detail=summary|full): change sets involving the entity, oldest first, one hop of context. before=ISO time resolves to the last commit at or before it. subtree uses current descendants at that snapshot; membership=ever also includes everything a promoted change set ever added or moved under it (ledger-derived; pre-ledger moves are not seen).
 Lineage: add_element may carry derived_from=[ids] and remove_element succeeded_by=[ids] (splits, merges, replacements). Story shows these as roles derived_from / succeeded_by via lineage; they are history only, never architectural edges.
 changes(disposition?, promoted?, entity?, source?, source_match=exact|contains, limit?): list change sets; state = disposition/implementation/verification[/promoted]. source=<url|key> keeps change sets whose sources[].ref or evidence source_ref matches (exact by default; contains for a PR number or issue key inside a URL) and adds matched=[{via: source, role, ref} | {via: evidence, evidence, kind, result, ref}] per row, so a requirement link and a verification record are told apart. change(change_id, revision?, include_evidence?): one change set with commits and derived verification.

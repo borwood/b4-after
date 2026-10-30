@@ -7,7 +7,7 @@ import {
   storyOf, validateInContext, proposeChangeSet, setDisposition, promoteChangeSet, recordEvidence, reconcileBaseline,
   projectModel, renderProjection, qualifyBaseline, deriveVerification, initModelRepo, adoptExistingModel, loadModel,
   releaseTimeline, releasedBaseline,
-  overview, search, expand, elementDetail, resolveElement,
+  overview, search, expand, elementDetail, resolveElement, locate,
   Ledger, ProjectionError, ProposalRejected, PromotionRefused, ReconcileRefused, LedgerError, EvidenceError,
   type StoryResult, type ValidationIssue, type Renderable, type RenderFormat,
 } from '@borwood/b4-after-ledger'
@@ -137,6 +137,15 @@ export function createServer(ctx: RepoContext): McpServer {
     const q = await qualifyBaseline(ctx.repoDir, { environment: a.environment, highlight: false, ledger: s.ledger })
     const sid = d.id.startsWith('fqn:') ? null : d.id
     return ok(s.head, { ...d, qualification: sid ? q.entities.get(sid) ?? null : null })
+  }))
+
+  server.registerTool('locate', {
+    description: 'Ground around an entity: full detail, related entities, then each container up to the root with its peers',
+    inputSchema: { entity: z.string(), max_peers: z.number().int().optional(), max_relationships: z.number().int().optional() },
+  }, async (a) => guarded(async () => {
+    const s = await ctx.snapshot()
+    const r = locate(s, { entity: a.entity, maxPeers: a.max_peers, maxRelationships: a.max_relationships })
+    return r ? ok(s.head, r) : fail('NOT_FOUND', `no element or relationship ${a.entity} at HEAD`, { hint: 'help ids' })
   }))
 
   server.registerTool('story', {
