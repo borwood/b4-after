@@ -83,6 +83,9 @@ describe('surface', () => {
     const s = await call(client, 'search', { query: 'billing', limit: 3 })
     expect(s.json.elements[0]).toMatchObject({ id: 'ent-billing', fqn: 'billing' })
     expect(s.json.truncated).toBe(true)
+    // Technology and description are searchable text too.
+    expect((await call(client, 'search', { query: 'postgres' })).json.elements.map((e: any) => e.id)).toEqual(['ent-ledger-db'])
+    expect((await call(client, 'search', { query: 'pays invoices' })).json.elements.map((e: any) => e.id)).toEqual(['ent-customer'])
     // Metadata is searchable as text and as a filter.
     expect((await call(client, 'search', { query: 'payments-team' })).json.elements.map((e: any) => e.id)).toEqual(['ent-billing'])
     const owned = await call(client, 'search', { query: '', metadata: { owner: 'payments-team' } })

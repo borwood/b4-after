@@ -20,6 +20,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
   is what `element` returns. `overview`, `search` and `expand` take `detail=medium` to answer
   "what are these" without one `element` call per row; the default stays minimal. `help queries`
   defines the tiers once.
+- `search` matches technology and description text, for elements and relationships, so "what
+  talks to Kafka" finds a component whose description says so. Ranking is unchanged: exact id or
+  title first, then prefix, then substring.
 - `changes` takes a `source` filter: the ref of an issue, PR, CI run or deployment. It matches
   change-set `sources[].ref` and evidence `source_ref`, so "which change sets relate to this
   link" is one call. Each row says what matched (`matched: [{via: source, role, ref}]` or

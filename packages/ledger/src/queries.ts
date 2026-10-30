@@ -178,7 +178,7 @@ export function search(s: Snapshot, opts: SearchOptions): SearchResult {
     const md = el.getMetadata() as Metadata
     if (meta && !hasMetadata(md, meta)) continue
     const sid = s.registry.elementByFqn(el.id)?.stableId ?? ''
-    const hay = [sid, el.id, el.title, el.kind, ...el.tags, ...metadataText(md)].map(x => x.toLowerCase())
+    const hay = [sid, el.id, el.title, el.kind, el.technology ?? '', el.description?.text ?? '', ...el.tags, ...metadataText(md)].map(x => x.toLowerCase())
     let score = 0
     if (!q) score = 1
     else if (sid.toLowerCase() === q || el.id.toLowerCase() === q) score = 100
@@ -194,7 +194,7 @@ export function search(s: Snapshot, opts: SearchOptions): SearchResult {
       const md = r.getMetadata() as Metadata
       if (meta && !hasMetadata(md, meta)) continue
       const sid = s.registry.relationshipByRelationId(r.id)?.stableId ?? ''
-      const hay = [sid, r.title ?? '', ...metadataText(md)].map(x => x.toLowerCase())
+      const hay = [sid, r.title ?? '', r.technology ?? '', r.description?.text ?? '', ...metadataText(md)].map(x => x.toLowerCase())
       if (!q || hay.some(h => h.includes(q))) relationships.push(relationshipRow(s, r))
       if (relationships.length >= limit) break
     }
