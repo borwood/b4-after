@@ -30,7 +30,7 @@ export interface MaterializeOptions {
 
 /** Write the data to a LikeC4 workspace. Caller disposes. */
 export async function materializeProjection(projection: Renderable, opts: MaterializeOptions = {}): Promise<MaterializedWorkspace> {
-  const dir = opts.dir ?? await mkdtemp(join(tmpdir(), 'b4-after-projection-'))
+  const dir = opts.dir ?? await mkdtemp(join(tmpdir(), 'cb4-projection-'))
   const files = await workspaceFiles(projection.data, opts.ledger)
   await writeWorkspace(dir, files)
   return { dir, files: Object.keys(files), dispose: () => opts.dir ? Promise.resolve() : rm(dir, { recursive: true, force: true }) }
@@ -60,7 +60,7 @@ export async function renderProjection(projection: Renderable, opts: RenderOptio
 
   const ws = await materializeProjection(projection, { ledger: opts.ledger })
   try {
-    const outDir = opts.outDir ?? await mkdtemp(join(tmpdir(), 'b4-after-render-'))
+    const outDir = opts.outDir ?? await mkdtemp(join(tmpdir(), 'cb4-render-'))
     const timeout = opts.timeoutMs ?? 180_000
     if (opts.format === 'html') {
       const log = await likec4(['build', ws.dir, '-o', outDir, '--output-single-file', '--use-hash-history', ...(opts.theme ? ['--theme', opts.theme] : [])], timeout)

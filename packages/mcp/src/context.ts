@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Git, IdentityRegistry, Ledger, loadModel, CHANGES_DIR, EVIDENCE_DIR, MODEL_DIR, type Snapshot } from '@borwood/b4-after-ledger'
+import { Git, IdentityRegistry, Ledger, loadModel, CHANGES_DIR, EVIDENCE_DIR, MODEL_DIR, type Snapshot } from 'cb4-ledger'
 
 export interface ContextOptions {
   /** Default actor for writes when a tool call does not name one. */
@@ -72,8 +72,8 @@ export class RepoContext {
    */
   async withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
     const lockDir = (await Git.isRepo(this.repoDir))
-      ? join(this.repoDir, '.git', '.b4-after.lock')
-      : join(tmpdir(), `b4-after-${createHash('sha1').update(this.repoDir).digest('hex').slice(0, 12)}.lock`)
+      ? join(this.repoDir, '.git', '.cb4.lock')
+      : join(tmpdir(), `cb4-${createHash('sha1').update(this.repoDir).digest('hex').slice(0, 12)}.lock`)
     const timeout = this.options.lockTimeoutMs ?? 30_000
     const stale = this.options.lockStaleMs ?? 120_000
     const started = Date.now()

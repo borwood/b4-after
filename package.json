@@ -1,11 +1,11 @@
 {
-  "name": "b4-after",
+  "name": "cb4",
   "private": true,
   "description": "Architecture change ledger for AI agents: a C4 model (LikeC4), a ledger of intended changes, and the evidence that verifies them, in one git repository",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/borwood/b4-after.git"
+    "url": "git+https://github.com/borwood/cb4.git"
   },
   "workspaces": [
     "packages/*"

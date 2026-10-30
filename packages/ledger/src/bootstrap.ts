@@ -230,7 +230,7 @@ const lastSegment = (fqn: string) => fqn.slice(fqn.lastIndexOf('.') + 1)
 function readme(name: string): string {
   return `# ${name} architecture
 
-Architecture model repository managed by [b4-after](https://github.com/borwood/b4-after).
+Architecture model repository managed by [cb4](https://github.com/borwood/cb4).
 
 - \`model/\` LikeC4 DSL, machine-generated. \`model.c4\` holds the specification and model, \`views.c4\` the generated views (As-is and Target folders). Written by promotion and reconciliation.
 - \`changes/\` one YAML record per logical change set.

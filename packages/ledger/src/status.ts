@@ -1,5 +1,5 @@
 // What exists versus what is intended, written into the committed model so that anyone reading it,
-// with or without b4-after, can tell the two apart.
+// with or without cb4, can tell the two apart.
 //
 // Promotion applies additions and moves at once and marks them; it defers property updates and
 // removals of entities that exist until evidence verifies them, because applying those early would
@@ -307,7 +307,7 @@ function writeStatus(entity: Record<string, any>, type: 'element' | 'relationshi
   }
   if (!status.flags.includes('pending_move')) delete entity.metadata[META.movedFrom]
 
-  // b4-after owns border/opacity on elements and line/color on relationships while a change is pending.
+  // cb4 owns border/opacity on elements and line/color on relationships while a change is pending.
   const key: StatusFlag | null = status.flags.includes('retiring') ? 'retiring' : status.flags.includes('intended') ? 'intended' : null
   if (type === 'element') {
     const style = { ...(entity.style ?? {}) }

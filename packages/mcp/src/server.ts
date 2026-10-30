@@ -10,12 +10,12 @@ import {
   overview, search, expand, elementDetail, resolveElement, locate,
   Ledger, ProjectionError, ProposalRejected, PromotionRefused, ReconcileRefused, LedgerError, EvidenceError,
   type StoryResult, type ValidationIssue, type Renderable, type RenderFormat,
-} from '@borwood/b4-after-ledger'
+} from 'cb4-ledger'
 import { RepoContext } from './context.js'
 import { help, HELP_TOPICS } from './help.js'
 
-export const SERVER_NAME = 'b4-after'
-export const SERVER_VERSION = '0.2.1'
+export const SERVER_NAME = 'cb4'
+export const SERVER_VERSION = '0.3.0'
 
 const short = (sha: string | null | undefined) => (sha ? sha.slice(0, 7) : null)
 

@@ -75,7 +75,7 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
   const userTags = [...tags].filter(t => !isReservedTag(t))
   const checkTags = (list: string[] | undefined, path: string) => {
     for (const t of list ?? []) {
-      if (isReservedTag(t)) err('E_RESERVED_TAG', path, `tag "${t}" is reserved: b4-after derives status tags from evidence; they cannot be set`)
+      if (isReservedTag(t)) err('E_RESERVED_TAG', path, `tag "${t}" is reserved: cb4 derives status tags from evidence; they cannot be set`)
       else if (!tags.has(t)) err('E_UNKNOWN_TAG', path, `tag "${t}" is not in the specification (known: ${userTags.join(', ') || 'none'})`)
     }
   }
@@ -85,8 +85,8 @@ export function validateChangeSet(input: unknown, ctx: ValidationContext = {}): 
   }
   const checkMetadata = (md: Record<string, unknown> | undefined, path: string) => {
     for (const k of Object.keys(md ?? {})) {
-      if (k === STABLE_ID_KEY) err('E_RESERVED_METADATA', `${path}/${k}`, `metadata key "${k}" is the entity's identity, written by b4-after from the operation id; it cannot be set`)
-      else if (isReservedMetadataKey(k)) err('E_RESERVED_METADATA', `${path}/${k}`, `metadata key "${k}" is reserved: b4-after derives status metadata from evidence; it cannot be set`)
+      if (k === STABLE_ID_KEY) err('E_RESERVED_METADATA', `${path}/${k}`, `metadata key "${k}" is the entity's identity, written by cb4 from the operation id; it cannot be set`)
+      else if (isReservedMetadataKey(k)) err('E_RESERVED_METADATA', `${path}/${k}`, `metadata key "${k}" is reserved: cb4 derives status metadata from evidence; it cannot be set`)
     }
   }
   /** An element whose removal is promoted but not yet verified still exists; building on it deserves a note. */

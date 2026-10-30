@@ -1,6 +1,6 @@
 # Example model repository: billing
 
-A small, complete model repository to explore b4-after with: a billing platform with a UI, an
+A small, complete model repository to explore cb4 with: a billing platform with a UI, an
 API, a component, a datastore, an external payment gateway, and a customer. It has one promoted
 change set, one proposed change set that depends on it, one rejected change set, and evidence on
 the promoted one.
@@ -20,7 +20,7 @@ at it:
 
 ```sh
 cp -r examples/billing /tmp/billing && cd /tmp/billing && git init -q && git add . && git commit -qm baseline
-claude mcp add billing -- npx -y @borwood/b4-after /tmp/billing --actor me
+claude mcp add billing -- npx -y cb4 /tmp/billing --actor me
 ```
 
 Then try `overview`, `story entity=ent-billing subtree=true`, `project changes=[CHG-042] render=dsl`,

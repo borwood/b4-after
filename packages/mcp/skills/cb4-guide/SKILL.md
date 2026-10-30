@@ -1,11 +1,11 @@
 ---
-name: b4-after-guide
-description: How b4-after works and how to work with it - the model repository, change sets, promotion, evidence, status flags, planning a project or feature before building it, and how in-progress work shows in the model. Use whenever a workspace has the b4-after MCP server and you need to plan, record, prove or read architecture, or when asked how b4-after works; also the source to derive smaller task-specific skills from.
+name: cb4-guide
+description: How cb4 works and how to work with it - the model repository, change sets, promotion, evidence, status flags, planning a project or feature before building it, and how in-progress work shows in the model. Use whenever a workspace has the cb4 MCP server and you need to plan, record, prove or read architecture, or when asked how cb4 works; also the source to derive smaller task-specific skills from.
 ---
 
-# Working with b4-after
+# Working with cb4
 
-b4-after keeps a C4 model of a system that coding agents maintain through MCP tools, next to a
+cb4 keeps a C4 model of a system that coding agents maintain through MCP tools, next to a
 ledger of intended changes and the evidence that proves them. Three things are always kept apart:
 what **exists**, what is **intended**, and what is merely **proposed**. Everything an agent writes
 is a record; everything the model says about status is derived from those records, never asserted.
@@ -167,4 +167,4 @@ short and stays current. Natural cuts:
   `help evidence`.
 - **review-change**: `changes disposition=proposed`, `project render=html`, `set_disposition`,
   `promote`, plus `help workflow`.
-- **adopt**: already shipped as `b4-after-adopt`, for bringing an existing codebase in.
+- **adopt**: already shipped as `cb4-adopt`, for bringing an existing codebase in.

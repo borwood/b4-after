@@ -1,13 +1,13 @@
-# @borwood/b4-after-ledger
+# cb4-ledger
 
-The library behind [b4-after](https://github.com/borwood/b4-after): change-set records with
+The library behind [cb4](https://github.com/borwood/cb4): change-set records with
 stable identity and git provenance, candidate projections, governed promotion into a LikeC4
 baseline, evidence-derived verification, a qualified baseline, release timelines, and a bounded
-`storyOf()`. The MCP server in `@borwood/b4-after` is a thin facade over these functions; use the
+`storyOf()`. The MCP server in `cb4` is a thin facade over these functions; use the
 library directly for CI hooks, custom tooling, or your own agent surface.
 
 ```sh
-npm install @borwood/b4-after-ledger
+npm install cb4-ledger
 ```
 
 Node 22.22 or later and git. HTML rendering shells out to the LikeC4 CLI and needs nothing more.
@@ -31,7 +31,7 @@ removals do not sever history.
 ## Load and query
 
 ```ts
-import { Ledger, loadModel, IdentityRegistry, storyOf, formatStory } from '@borwood/b4-after-ledger'
+import { Ledger, loadModel, IdentityRegistry, storyOf, formatStory } from 'cb4-ledger'
 
 const ledger = await Ledger.load(repoDir)                           // working tree
 const asOf   = await Ledger.load(repoDir, { revision: 'abc123' })
@@ -68,7 +68,7 @@ one hop in stories and is never an architectural edge.
 ## Change sets
 
 ```ts
-import { validateChangeSet, validateInContext, proposeChangeSet, setDisposition, promoteChangeSet } from '@borwood/b4-after-ledger'
+import { validateChangeSet, validateInContext, proposeChangeSet, setDisposition, promoteChangeSet } from 'cb4-ledger'
 
 const check = validateChangeSet(yamlObject, { registry, ledger })           // against one registry
 const staged = await validateInContext(loaded, yamlObject, ledger)         // unpromoted depends_on projected first
@@ -114,7 +114,7 @@ repository.
 ## Status and reconciliation
 
 ```ts
-import { reconcileBaseline, annotateStatuses, TAG, META, flagsOfTags } from '@borwood/b4-after-ledger'
+import { reconcileBaseline, annotateStatuses, TAG, META, flagsOfTags } from 'cb4-ledger'
 
 await reconcileBaseline(repoDir, { actor: 'ci' })   // { changed, sha, applied, warnings, counts }
 const s = await annotateStatuses(parsedData, ledger) // per-entity flags and reasons, data annotated in place
@@ -147,7 +147,7 @@ ledger. `workspaceFiles` produces both files from parsed data; `generateAndCheck
 ## Projections and rendering
 
 ```ts
-import { projectModel, renderProjection } from '@borwood/b4-after-ledger'
+import { projectModel, renderProjection } from 'cb4-ledger'
 
 const p = await projectModel(repoDir, { includeChanges: ['CHG-042', 'CHG-044'] })
 p.model            // computed LikeC4 model with the operations applied; baseline untouched
@@ -168,7 +168,7 @@ rules; `remove_element` cascades to descendants, attached relationships, and vie
 ## Evidence and verification
 
 ```ts
-import { recordEvidence, deriveVerification, qualifyBaseline, formatQualification } from '@borwood/b4-after-ledger'
+import { recordEvidence, deriveVerification, qualifyBaseline, formatQualification } from 'cb4-ledger'
 
 await recordEvidence(repoDir, 'CHG-042', {
   id: 'ev-042-ci', kind: 'test', result: 'pass', source_ref: 'https://ci/runs/9912',
@@ -214,7 +214,7 @@ verified, partial, failed, unverified, or unrecorded, per environment and at any
 ## Releases
 
 ```ts
-import { releaseTimeline, releasedBaseline } from '@borwood/b4-after-ledger'
+import { releaseTimeline, releasedBaseline } from 'cb4-ledger'
 
 releaseTimeline(ledger, { environment: 'production' })
 await releasedBaseline(repoDir, { environment: 'production', at: '2026-06-01T00:00:00Z' })
@@ -230,7 +230,7 @@ attempt failed. Deployments of unpromoted change sets are listed and flagged.
 ## Adoption
 
 ```ts
-import { initModelRepo, adoptExistingModel } from '@borwood/b4-after-ledger'
+import { initModelRepo, adoptExistingModel } from 'cb4-ledger'
 
 await initModelRepo(dir, { name: 'Shop', actor: 'adopter', kinds: ['actor', 'system', 'container', 'component', 'datastore'], tags: ['external'] })
 await adoptExistingModel(dir, { actor: 'adopter' })
@@ -242,7 +242,7 @@ LikeC4 model, assigns missing stable ids, records one inferred, pre-ledger-promo
 root plus one for cross-root relationships, and regenerates `model/` with statuses and views; it is
 idempotent. Inferred change sets carry `inferred: true` so stories and the qualified baseline say
 where knowledge came from. The agent procedure for inferring a baseline from a codebase is the
-`b4-after-adopt` skill shipped with `@borwood/b4-after`.
+`cb4-adopt` skill shipped with `cb4`.
 
 ## Notes on LikeC4
 
@@ -251,12 +251,12 @@ declared without a colour, and its generator writes them back in a form its pars
 `generateDSL` normalises these to hex so every regeneration path is safe. `computedModel()`
 returns one shared mutable instance; the library disposes LikeC4 services right after extracting
 a model and only ever projects on detached parsed data. More in the
-[LikeC4 notes](https://github.com/borwood/b4-after/blob/main/docs/likec4-findings.md).
+[LikeC4 notes](https://github.com/borwood/cb4/blob/main/docs/likec4-findings.md).
 
 ## Changelog
 
 Release notes for both packages live in the repository's
-[CHANGELOG.md](https://github.com/borwood/b4-after/blob/main/CHANGELOG.md).
+[CHANGELOG.md](https://github.com/borwood/cb4/blob/main/CHANGELOG.md).
 
 ## Development
 

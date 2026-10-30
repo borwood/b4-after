@@ -20,7 +20,7 @@ export interface Fixture {
 }
 
 export async function makeRepo(): Promise<Fixture> {
-  const dir = await mkdtemp(join(tmpdir(), 'b4-after-fixture-'))
+  const dir = await mkdtemp(join(tmpdir(), 'cb4-fixture-'))
   const git = new Git(dir)
   await git.exec(['init', '-q', '-b', 'main'])
   await git.exec(['config', 'user.name', 'fixture'])

@@ -1,6 +1,6 @@
-// b4-after [repoDir] [--actor <name>]        start the MCP server (stdio) over a model repository
-// b4-after skill [name...] [--codex] [--to <dir>]   install the shipped skills into the current project
-// Env: B4_AFTER_REPO, B4_AFTER_ACTOR.
+// cb4 [repoDir] [--actor <name>]        start the MCP server (stdio) over a model repository
+// cb4 skill [name...] [--codex] [--to <dir>]   install the shipped skills into the current project
+// Env: CB4_REPO, CB4_ACTOR.
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
@@ -10,14 +10,14 @@ import { resolveRepoDir } from './paths.js'
 import { createServer, SERVER_VERSION } from './server.js'
 
 const USAGE = `usage:
-  b4-after [repoDir] [--actor <name>]     MCP server (stdio) over a model repository
-  b4-after skill [name...] [--codex] [--to <dir>]
-            install the shipped skills (b4-after-guide, b4-after-adopt) for your coding agent;
+  cb4 [repoDir] [--actor <name>]     MCP server (stdio) over a model repository
+  cb4 skill [name...] [--codex] [--to <dir>]
+            install the shipped skills (cb4-guide, cb4-adopt) for your coding agent;
             name one or more to install only those
 
   repoDir   model repository: its own git repository with model/, changes/, evidence/.
-            Created on first use by the bootstrap tool. Default: $B4_AFTER_REPO or cwd.
-  --actor   default actor recorded on writes (env B4_AFTER_ACTOR); tools may override per call.
+            Created on first use by the bootstrap tool. Default: $CB4_REPO or cwd.
+  --actor   default actor recorded on writes (env CB4_ACTOR); tools may override per call.
   --codex   install skills to .agents/skills/ (Codex) instead of .claude/skills/ (Claude Code).
   --to      install skills under this skills directory instead.
 `
@@ -50,8 +50,8 @@ async function installSkill(args: string[]): Promise<void> {
 }
 
 async function serve(args: string[]): Promise<void> {
-  let repoDir = process.env.B4_AFTER_REPO ?? process.cwd()
-  let actor = process.env.B4_AFTER_ACTOR
+  let repoDir = process.env.CB4_REPO ?? process.cwd()
+  let actor = process.env.CB4_ACTOR
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!
     if (a === '--actor') actor = args[++i]
@@ -65,7 +65,7 @@ async function serve(args: string[]): Promise<void> {
   const server = createServer(ctx)
   await server.connect(new StdioServerTransport())
   const anchor = resolved.via === 'main-worktree' ? ` (relative to main worktree ${resolved.mainWorktree})` : ''
-  process.stderr.write(`b4-after ${SERVER_VERSION}: ${ctx.repoDir}${anchor}${actor ? ` (actor ${actor})` : ''}\n`)
+  process.stderr.write(`cb4 ${SERVER_VERSION}: ${ctx.repoDir}${anchor}${actor ? ` (actor ${actor})` : ''}\n`)
 }
 
 const argv = process.argv.slice(2)

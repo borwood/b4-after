@@ -5,7 +5,7 @@ import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Git } from '@borwood/b4-after-ledger'
+import { Git } from 'cb4-ledger'
 import { createServer } from '../src/server.js'
 import { RepoContext } from '../src/context.js'
 
@@ -35,7 +35,7 @@ const call = async (cl: Client, name: string, args: Record<string, unknown> = {}
 }
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'b4-after-'))
+  dir = await mkdtemp(join(tmpdir(), 'cb4-'))
   git = new Git(dir)
   await git.exec(['init', '-q', '-b', 'main'])
   await git.exec(['config', 'user.name', 'fixture'])
@@ -354,7 +354,7 @@ describe('writes and concurrency', () => {
     const dsl = await call(client, 'render', { format: 'dsl' })
     expect(dsl.json.views).toEqual(expect.arrayContaining(['index', 'index--target', 'el--billing--target']))
     expect(dsl.json.dsl).toMatch(/views \{/)
-    const out = await mkdtemp(join(tmpdir(), 'b4-after-html-'))
+    const out = await mkdtemp(join(tmpdir(), 'cb4-html-'))
     try {
       const html = await call(client, 'render', { out_dir: out })
       expect(html.json.html.file).toBe(join(out, 'index.html'))
@@ -366,7 +366,7 @@ describe('writes and concurrency', () => {
 
   it('bootstrap init on a directory that does not exist yet, nested in another repository', async () => {
     // The common dogfooding layout: <code repo>/architecture, before anything is there.
-    const outer = await mkdtemp(join(tmpdir(), 'b4-after-outer-'))
+    const outer = await mkdtemp(join(tmpdir(), 'cb4-outer-'))
     const fresh = join(outer, 'architecture')
     try {
       const og = new Git(outer)

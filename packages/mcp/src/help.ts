@@ -4,7 +4,7 @@
 export const HELP_TOPICS = ['start', 'ids', 'schema', 'operations', 'evidence', 'status', 'workflow', 'plan', 'concurrency', 'queries', 'policy', 'errors', 'adopt'] as const
 export type HelpTopic = typeof HELP_TOPICS[number]
 
-const INDEX = `b4-after: architecture model (LikeC4) + change-set ledger + evidence, in one git repo.
+const INDEX = `cb4: architecture model (LikeC4) + change-set ledger + evidence, in one git repo.
 Topics (help topic=<name>):
 - start: 5-step quickstart for a new task
 - ids: stable ids vs FQNs; how entities are named in every call

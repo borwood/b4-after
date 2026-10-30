@@ -1,4 +1,4 @@
-// The files b4-after writes under model/: generated DSL for specification and model, and generated
+// The files cb4 writes under model/: generated DSL for specification and model, and generated
 // views. Everything that writes a LikeC4 workspace (promotion, reconciliation, adoption, rendering)
 // goes through here so the files are always produced and checked the same way.
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -45,7 +45,7 @@ export function sameWorkspace(a: WorkspaceFiles, b: WorkspaceFiles): boolean {
 
 /** Load the files as a model repository would see them (under model/), in a temporary directory. */
 export async function loadWorkspaceFiles(files: WorkspaceFiles, opts: { throwIfInvalid?: boolean } = {}): Promise<LoadedModel> {
-  const dir = await mkdtemp(join(tmpdir(), 'b4-after-ws-'))
+  const dir = await mkdtemp(join(tmpdir(), 'cb4-ws-'))
   try {
     await writeWorkspace(join(dir, MODEL_DIR), files)
     return await loadModel(dir, { throwIfInvalid: opts.throwIfInvalid ?? false })

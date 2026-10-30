@@ -14,7 +14,7 @@ import { IdentityRegistry } from '../src/identity.js'
 import { Git } from '../src/git.js'
 
 let root: string
-beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'b4-after-boot-')) })
+beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'cb4-boot-')) })
 afterAll(async () => { await rm(root, { recursive: true, force: true }) })
 
 describe('fresh adoption: init, then inferred change sets through the normal path', () => {

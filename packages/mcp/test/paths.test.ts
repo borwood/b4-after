@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { Git } from '@borwood/b4-after-ledger'
+import { Git } from 'cb4-ledger'
 import { mainWorktreeOf, resolveRepoDir } from '../src/paths.js'
 
 let root: string
@@ -12,7 +12,7 @@ let linked: string
 const norm = (p: string) => (process.platform === 'win32' ? p.toLowerCase() : p)
 
 beforeAll(async () => {
-  root = await realpath(await mkdtemp(join(tmpdir(), 'b4-after-paths-')))
+  root = await realpath(await mkdtemp(join(tmpdir(), 'cb4-paths-')))
   main = join(root, 'code')
   linked = join(root, 'code-feature')
   const git = new Git(root)

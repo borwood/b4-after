@@ -1,11 +1,28 @@
 # Changelog
 
-What changes for you when you upgrade. Both packages, `@borwood/b4-after` (the MCP server and
-CLI) and `@borwood/b4-after-ledger` (the library), are released together under one version.
+What changes for you when you upgrade. Both packages, `cb4` (the MCP server and CLI) and
+`cb4-ledger` (the library), are released together under one version. Before 0.3.0 they were
+published as `@borwood/b4-after` and `@borwood/b4-after-ledger`.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/) and will break before 1.0; breaking changes are marked.
 
 ## [Unreleased]
+
+## [0.3.0] - 2026-10-30
+
+### Upgrading
+
+- The project is now **cb4**. The packages are `cb4` (MCP server and CLI, command `cb4`) and
+  `cb4-ledger`, unscoped. `@borwood/b4-after` and `@borwood/b4-after-ledger` are deprecated and
+  will not receive further versions. To move:
+  - Point your MCP client at the new package: `claude mcp add cb4 -- npx -y cb4 ./architecture --actor claude`
+    (or `codex mcp add ...`), and remove the old entry.
+  - Environment variables are `CB4_REPO` and `CB4_ACTOR` (were `B4_AFTER_REPO`, `B4_AFTER_ACTOR`).
+  - Reinstall the skills, now `cb4-guide` and `cb4-adopt`: `npx -y cb4 skill` (add `--codex` for
+    Codex), and delete the old `b4-after-*` skill folders.
+  - Library users import from `cb4-ledger`; the API is unchanged apart from the entries below.
+- Nothing in a model repository changes. The `b4-*` tags and `b4_*` metadata that cb4 writes into
+  the model keep their names, so existing repositories need no migration.
 
 ### Added
 
@@ -161,7 +178,8 @@ First public release, renamed from the `like-b4` prototype.
 - MCP server with seventeen bounded, compact tools; a relative model-repository path anchors to the
   main worktree so linked worktrees and subagents share one ledger.
 
-[Unreleased]: https://github.com/borwood/b4-after/compare/v0.2.1...HEAD
-[0.2.1]: https://github.com/borwood/b4-after/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/borwood/b4-after/compare/0db645a...v0.2.0
-[0.1.0]: https://github.com/borwood/b4-after/commits/0db645a
+[Unreleased]: https://github.com/borwood/cb4/compare/v0.2.1...HEAD
+[0.3.0]: https://github.com/borwood/cb4/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/borwood/cb4/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/borwood/cb4/compare/0db645a...v0.2.0
+[0.1.0]: https://github.com/borwood/cb4/commits/0db645a

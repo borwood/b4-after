@@ -1,4 +1,4 @@
-> **About this document.** Notes from evaluating LikeC4 1.60.0 as the engine behind b4-after,
+> **About this document.** Notes from evaluating LikeC4 1.60.0 as the engine behind cb4,
 > written before the name was chosen. The probe scripts, sample model, and rendered samples it
 > refers to were removed from the tree when the repository went public; they are in git history
 > at commit `cab57b0` under `spikes/phase-a/`.

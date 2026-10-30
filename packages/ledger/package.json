@@ -1,17 +1,17 @@
 {
-  "name": "@borwood/b4-after-ledger",
-  "version": "0.2.1",
-  "description": "Library behind b4-after: change sets, stable identity, git provenance, candidate projections, governed promotion, evidence-derived verification, and storyOf() over a LikeC4 model repository",
+  "name": "cb4-ledger",
+  "version": "0.3.0",
+  "description": "Library behind cb4: change sets, stable identity, git provenance, candidate projections, governed promotion, evidence-derived verification, and storyOf() over a LikeC4 model repository",
   "license": "MIT",
   "author": "borwood",
-  "homepage": "https://github.com/borwood/b4-after#readme",
+  "homepage": "https://github.com/borwood/cb4#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/borwood/b4-after.git",
+    "url": "git+https://github.com/borwood/cb4.git",
     "directory": "packages/ledger"
   },
   "bugs": {
-    "url": "https://github.com/borwood/b4-after/issues"
+    "url": "https://github.com/borwood/cb4/issues"
   },
   "keywords": [
     "architecture",

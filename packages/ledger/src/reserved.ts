@@ -1,4 +1,4 @@
-// Reserved vocabulary b4-after writes into the model to say what is real and what is intended.
+// Reserved vocabulary cb4 writes into the model to say what is real and what is intended.
 // Agents may not set these themselves: validation rejects them, and operations that replace tags
 // keep them. Everything here is derived from the ledger and evidence, never asserted.
 

@@ -1,8 +1,8 @@
-# @borwood/b4-after
+# cb4
 
-The MCP server and CLI for [b4-after](https://github.com/borwood/b4-after): an agent-facing
+The MCP server and CLI for [cb4](https://github.com/borwood/cb4): an agent-facing
 facade over a model repository (`model/`, `changes/`, `evidence/`). It wraps
-[`@borwood/b4-after-ledger`](https://www.npmjs.com/package/@borwood/b4-after-ledger); nothing
+[`cb4-ledger`](https://www.npmjs.com/package/cb4-ledger); nothing
 here reimplements LikeC4 or the ledger.
 
 ## Install
@@ -10,21 +10,21 @@ here reimplements LikeC4 or the ledger.
 Claude Code:
 
 ```sh
-claude mcp add b4-after -- npx -y @borwood/b4-after ./architecture --actor claude
-npx -y @borwood/b4-after skill            # -> .claude/skills/b4-after-guide, .claude/skills/b4-after-adopt
+claude mcp add cb4 -- npx -y cb4 ./architecture --actor claude
+npx -y cb4 skill            # -> .claude/skills/cb4-guide, .claude/skills/cb4-adopt
 ```
 
 Codex:
 
 ```sh
-codex mcp add b4-after -- npx -y @borwood/b4-after ./architecture --actor codex
-npx -y @borwood/b4-after skill --codex    # -> .agents/skills/...
+codex mcp add cb4 -- npx -y cb4 ./architecture --actor codex
+npx -y cb4 skill --codex    # -> .agents/skills/...
 ```
 
 Any other MCP client, over stdio:
 
 ```json
-{ "mcpServers": { "b4-after": { "command": "npx", "args": ["-y", "@borwood/b4-after", "/abs/path/architecture", "--actor", "my-agent"] } } }
+{ "mcpServers": { "cb4": { "command": "npx", "args": ["-y", "cb4", "/abs/path/architecture", "--actor", "my-agent"] } } }
 ```
 
 The path is the model repository. It does not need to exist yet: the `bootstrap` tool creates it
@@ -50,23 +50,23 @@ happens when the work lands on the main branch.
 ## CLI
 
 ```
-b4-after [repoDir] [--actor <name>]     MCP server (stdio) over a model repository
-b4-after skill [name...] [--codex] [--to <dir>]   install the shipped skills (or the named ones) for your coding agent
+cb4 [repoDir] [--actor <name>]     MCP server (stdio) over a model repository
+cb4 skill [name...] [--codex] [--to <dir>]   install the shipped skills (or the named ones) for your coding agent
 ```
 
-Environment: `B4_AFTER_REPO`, `B4_AFTER_ACTOR`. `--actor` is the default recorded on writes; a tool
+Environment: `CB4_REPO`, `CB4_ACTOR`. `--actor` is the default recorded on writes; a tool
 call may name its own. Each agent process gets its own server process; that is fine (see
 Concurrency).
 
 ## The skills
 
-`b4-after-guide` is the general one: the mental model of the repository, the three states of an
+`cb4-guide` is the general one: the mental model of the repository, the three states of an
 architectural fact (proposed, intended, real), change sets and their lifecycle, what evidence means
 and what it derives, how in-progress work looks in the model, how to plan a project in layers
 before building it, the day-to-day loops, and how to cut it into shorter task-specific skills for a
-workspace. `b4-after-adopt` tells an agent how to bring an existing codebase into the ledger
+workspace. `cb4-adopt` tells an agent how to bring an existing codebase into the ledger
 honestly: survey the repository, decide roots, propose one inferred change set per bounded context
-citing what it read, promote, and report counts. `b4-after skill` installs both into
+citing what it read, promote, and report counts. `cb4 skill` installs both into
 `.claude/skills/`; name one to install only it; `--codex` targets `.agents/skills/`; `--to` names
 any skills directory. The skills ship inside this package, so they always match the server they
 were installed with.
@@ -138,7 +138,7 @@ Several agents may use one repository at once, through one or several server pro
 
 - Reads come from a per-process snapshot cached by HEAD plus the mtimes of `model/`, `changes/`
   and `evidence/`, so commits or files written by another process are picked up on the next call.
-- Writes take a cross-process lock (`.git/.b4-after.lock`, atomic mkdir, stale after 120 s, wait up
+- Writes take a cross-process lock (`.git/.cb4.lock`, atomic mkdir, stale after 120 s, wait up
   to 30 s then `LOCK_BUSY`), then run the library's own `expectedHead` check. Agents that read
   before writing should pass `expected_head` (short sha accepted) and handle `REPO_MOVED` by
   re-reading and retrying.
@@ -147,7 +147,7 @@ Several agents may use one repository at once, through one or several server pro
 ## Library use
 
 ```ts
-import { createServer, RepoContext } from '@borwood/b4-after'
+import { createServer, RepoContext } from 'cb4'
 
 const server = createServer(new RepoContext('/abs/path/architecture', { actor: 'ci' }))
 await server.connect(transport)   // any MCP server transport
@@ -156,7 +156,7 @@ await server.connect(transport)   // any MCP server transport
 ## Changelog
 
 Release notes for both packages live in the repository's
-[CHANGELOG.md](https://github.com/borwood/b4-after/blob/main/CHANGELOG.md).
+[CHANGELOG.md](https://github.com/borwood/cb4/blob/main/CHANGELOG.md).
 
 ## Development
 

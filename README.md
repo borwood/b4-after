@@ -1,20 +1,20 @@
-# b4-after
+# cb4
 
-**The architecture before and after every change, with the evidence in between.**
+**See changes to your architecture before and as you build them.**
 A C4 model of your system that coding agents keep honest: every intended change is a reviewed
 record, every promoted change is history, and nothing counts as verified until evidence says so.
 
 ```sh
 # Claude Code
-claude mcp add b4-after -- npx -y @borwood/b4-after ./architecture --actor claude
-npx -y @borwood/b4-after skill            # installs the b4-after-guide and b4-after-adopt skills
+claude mcp add cb4 -- npx -y cb4 ./architecture --actor claude
+npx -y cb4 skill            # installs the cb4-guide and cb4-adopt skills
 
 # Codex
-codex mcp add b4-after -- npx -y @borwood/b4-after ./architecture --actor codex
-npx -y @borwood/b4-after skill --codex
+codex mcp add cb4 -- npx -y cb4 ./architecture --actor codex
+npx -y cb4 skill --codex
 ```
 
-Then ask your agent to **adopt this codebase into b4-after**. The adopt skill walks it through
+Then ask your agent to **adopt this codebase into cb4**. The adopt skill walks it through
 reading the repository, recording an inferred C4 baseline, and promoting it. The guide skill gives
 it the mental model for everything after that: change sets, promotion, evidence, what the status
 flags mean, and how to plan a project before building it. From there, any change you plan, however
@@ -59,7 +59,7 @@ linked git worktrees all share the one ledger instead of starting their own.
 C4 gives agents a hierarchy to drill into: start at the system landscape, expand one container,
 see one component's relationships. Retrieval stays bounded instead of loading a whole dependency
 graph. LikeC4 adds a small typed specification (your own element kinds, relationship kinds, and
-tags), a text DSL that lives in git, a real parser and validator, and a renderer. b4-after does not
+tags), a text DSL that lives in git, a real parser and validator, and a renderer. cb4 does not
 reimplement any of that. It owns identity, history, governance, and evidence, and treats the
 LikeC4 model as a generated artifact it alone writes.
 
@@ -88,7 +88,7 @@ dependencies), reviewed as a batch with `project`, promoted in order. Everything
 `b4-intended` until evidence arrives, so the model never claims the plan is built. A slice that
 builds what the plan says is recorded as evidence naming its `targets`; a refinement is a follow-up
 change set; a fork that changes the design applies at once, because nothing real exists yet to be
-faithful to. `help plan` and the `b4-after-guide` skill lay this out.
+faithful to. `help plan` and the `cb4-guide` skill lay this out.
 
 **Review and promote.** A reviewer, human or agent, inspects the candidate with
 `project render=html`, then moves the change set to `accepted` with `set_disposition`. `promote`
@@ -159,8 +159,8 @@ at them.
 
 | Package | What |
 |---|---|
-| [`@borwood/b4-after`](packages/mcp) | The MCP server and CLI. Also carries the `b4-after-guide` and `b4-after-adopt` skills. |
-| [`@borwood/b4-after-ledger`](packages/ledger) | The library: change sets, identity, provenance, projections, promotion, evidence, stories, releases. Use it to build your own tooling or CI hooks. |
+| [`cb4`](packages/mcp) | The MCP server and CLI. Also carries the `cb4-guide` and `cb4-adopt` skills. |
+| [`cb4-ledger`](packages/ledger) | The library: change sets, identity, provenance, projections, promotion, evidence, stories, releases. Use it to build your own tooling or CI hooks. |
 
 [`examples/billing`](examples/billing) is a small model repository to explore with. The original
 requirements document and the notes from evaluating LikeC4 are in [`docs/`](docs).

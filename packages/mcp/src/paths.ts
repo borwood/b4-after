@@ -7,7 +7,7 @@
 // against the top level of the MAIN worktree of whatever repository contains cwd. Absolute paths
 // are used as given; outside any repository the path is relative to cwd.
 import { isAbsolute, resolve } from 'node:path'
-import { Git } from '@borwood/b4-after-ledger'
+import { Git } from 'cb4-ledger'
 
 export interface ResolvedRepoDir {
   dir: string

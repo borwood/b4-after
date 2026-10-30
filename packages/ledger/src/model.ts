@@ -43,7 +43,7 @@ export async function loadModel(repoDir: string, opts: LoadModelOptions = {}): P
   const sha = await git.revParse(opts.revision)
   const files = await git.lsTree(sha, modelDir)
   if (files.length === 0) throw new Error(`no files under ${modelDir}/ at revision ${opts.revision}`)
-  const tmp = await mkdtemp(join(tmpdir(), 'b4-after-model-'))
+  const tmp = await mkdtemp(join(tmpdir(), 'cb4-model-'))
   try {
     for (const f of files) {
       const content = await git.show(sha, f)

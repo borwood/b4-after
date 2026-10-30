@@ -1,16 +1,16 @@
 ---
-name: b4-after-adopt
-description: Bring an existing codebase into b4-after as an honest, inferred, unverified C4 baseline. Use when asked to adopt, onboard, bootstrap, or "model the architecture of" a repository with b4-after, or when the b4-after overview reports the model repository is not initialised yet.
+name: cb4-adopt
+description: Bring an existing codebase into cb4 as an honest, inferred, unverified C4 baseline. Use when asked to adopt, onboard, bootstrap, or "model the architecture of" a repository with cb4, or when the cb4 overview reports the model repository is not initialised yet.
 ---
 
-# Adopt a codebase into b4-after
+# Adopt a codebase into cb4
 
 You produce a declared architecture that is **inferred**, not asserted. Every element you record
 will show as `unverified` until evidence is recorded. Prefer fewer, truer elements over coverage.
 
 ## Preconditions
 
-- The `b4-after` MCP server is connected and pointed at the model repository (not the codebase).
+- The `cb4` MCP server is connected and pointed at the model repository (not the codebase).
   Call `overview`: `initialized: false` means you are on path A; a model with no change sets
   means path B.
 - You have an actor name for this session (pass `actor` on every write unless the server was

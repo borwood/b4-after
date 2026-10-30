@@ -1,17 +1,17 @@
 {
-  "name": "@borwood/b4-after",
-  "version": "0.2.1",
-  "description": "MCP server and CLI for b4-after: lets coding agents model a system as C4 (LikeC4), propose and review changes to it, promote accepted changes, and record the evidence that verifies them",
+  "name": "cb4",
+  "version": "0.3.0",
+  "description": "See changes to your architecture before and as you build them: an MCP server and CLI that lets coding agents model a system as C4 (LikeC4), propose and review changes, promote accepted ones, and record the evidence that verifies them",
   "license": "MIT",
   "author": "borwood",
-  "homepage": "https://github.com/borwood/b4-after#readme",
+  "homepage": "https://github.com/borwood/cb4#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/borwood/b4-after.git",
+    "url": "git+https://github.com/borwood/cb4.git",
     "directory": "packages/mcp"
   },
   "bugs": {
-    "url": "https://github.com/borwood/b4-after/issues"
+    "url": "https://github.com/borwood/cb4/issues"
   },
   "keywords": [
     "mcp",
@@ -35,7 +35,7 @@
     }
   },
   "bin": {
-    "b4-after": "bin/b4-after.mjs"
+    "cb4": "bin/cb4.mjs"
   },
   "files": [
     "bin",
@@ -57,7 +57,7 @@
     "node": ">=22.22"
   },
   "dependencies": {
-    "@borwood/b4-after-ledger": "0.2.1",
+    "cb4-ledger": "0.3.0",
     "@modelcontextprotocol/sdk": "1.32.2",
     "zod": "4.6.7"
   },
