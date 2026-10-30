@@ -1,5 +1,5 @@
 {
-  "name": "cb4",
+  "name": "cb4-mcp",
   "version": "0.3.0",
   "description": "See changes to your architecture before and as you build them: an MCP server and CLI that lets coding agents model a system as C4 (LikeC4), propose and review changes, promote accepted ones, and record the evidence that verifies them",
   "license": "MIT",

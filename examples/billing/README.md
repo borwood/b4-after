@@ -20,7 +20,7 @@ at it:
 
 ```sh
 cp -r examples/billing /tmp/billing && cd /tmp/billing && git init -q && git add . && git commit -qm baseline
-claude mcp add billing -- npx -y cb4 /tmp/billing --actor me
+claude mcp add billing -- npx -y cb4-mcp /tmp/billing --actor me
 ```
 
 Then try `overview`, `story entity=ent-billing subtree=true`, `project changes=[CHG-042] render=dsl`,

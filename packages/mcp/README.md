@@ -1,4 +1,4 @@
-# cb4
+# cb4-mcp
 
 The MCP server and CLI for [cb4](https://github.com/borwood/cb4): an agent-facing
 facade over a model repository (`model/`, `changes/`, `evidence/`). It wraps
@@ -10,15 +10,15 @@ here reimplements LikeC4 or the ledger.
 Claude Code:
 
 ```sh
-claude mcp add cb4 -- npx -y cb4 ./architecture --actor claude
-npx -y cb4 skill            # -> .claude/skills/cb4-guide, .claude/skills/cb4-adopt
+claude mcp add cb4 -- npx -y cb4-mcp ./architecture --actor claude
+npx -y cb4-mcp skill            # -> .claude/skills/cb4-guide, .claude/skills/cb4-adopt
 ```
 
 Codex:
 
 ```sh
-codex mcp add cb4 -- npx -y cb4 ./architecture --actor codex
-npx -y cb4 skill --codex    # -> .agents/skills/...
+codex mcp add cb4 -- npx -y cb4-mcp ./architecture --actor codex
+npx -y cb4-mcp skill --codex    # -> .agents/skills/...
 ```
 
 Any other MCP client, over stdio:

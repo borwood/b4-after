@@ -3,7 +3,7 @@
 The library behind [cb4](https://github.com/borwood/cb4): change-set records with
 stable identity and git provenance, candidate projections, governed promotion into a LikeC4
 baseline, evidence-derived verification, a qualified baseline, release timelines, and a bounded
-`storyOf()`. The MCP server in `cb4` is a thin facade over these functions; use the
+`storyOf()`. The MCP server in `cb4-mcp` is a thin facade over these functions; use the
 library directly for CI hooks, custom tooling, or your own agent surface.
 
 ```sh
@@ -242,7 +242,7 @@ LikeC4 model, assigns missing stable ids, records one inferred, pre-ledger-promo
 root plus one for cross-root relationships, and regenerates `model/` with statuses and views; it is
 idempotent. Inferred change sets carry `inferred: true` so stories and the qualified baseline say
 where knowledge came from. The agent procedure for inferring a baseline from a codebase is the
-`cb4-adopt` skill shipped with `cb4`.
+`cb4-adopt` skill shipped with `cb4-mcp`.
 
 ## Notes on LikeC4
 

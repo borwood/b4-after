@@ -6,12 +6,12 @@ record, every promoted change is history, and nothing counts as verified until e
 
 ```sh
 # Claude Code
-claude mcp add cb4 -- npx -y cb4 ./architecture --actor claude
-npx -y cb4 skill            # installs the cb4-guide and cb4-adopt skills
+claude mcp add cb4 -- npx -y cb4-mcp ./architecture --actor claude
+npx -y cb4-mcp skill            # installs the cb4-guide and cb4-adopt skills
 
 # Codex
-codex mcp add cb4 -- npx -y cb4 ./architecture --actor codex
-npx -y cb4 skill --codex
+codex mcp add cb4 -- npx -y cb4-mcp ./architecture --actor codex
+npx -y cb4-mcp skill --codex
 ```
 
 Then ask your agent to **adopt this codebase into cb4**. The adopt skill walks it through
@@ -159,7 +159,7 @@ at them.
 
 | Package | What |
 |---|---|
-| [`cb4`](packages/mcp) | The MCP server and CLI. Also carries the `cb4-guide` and `cb4-adopt` skills. |
+| [`cb4-mcp`](packages/mcp) | The MCP server and CLI. Also carries the `cb4-guide` and `cb4-adopt` skills. |
 | [`cb4-ledger`](packages/ledger) | The library: change sets, identity, provenance, projections, promotion, evidence, stories, releases. Use it to build your own tooling or CI hooks. |
 
 [`examples/billing`](examples/billing) is a small model repository to explore with. The original

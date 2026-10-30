@@ -1,6 +1,6 @@
 # Changelog
 
-What changes for you when you upgrade. Both packages, `cb4` (the MCP server and CLI) and
+What changes for you when you upgrade. Both packages, `cb4-mcp` (the MCP server and CLI) and
 `cb4-ledger` (the library), are released together under one version. Before 0.3.0 they were
 published as `@borwood/b4-after` and `@borwood/b4-after-ledger`.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
@@ -12,13 +12,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ### Upgrading
 
-- The project is now **cb4**. The packages are `cb4` (MCP server and CLI, command `cb4`) and
-  `cb4-ledger`, unscoped. `@borwood/b4-after` and `@borwood/b4-after-ledger` are deprecated and
+- The project is now **cb4**. The packages are `cb4-mcp` (MCP server and CLI, command `cb4`; npm
+  refuses the bare name as too close to existing packages) and `cb4-ledger`, unscoped. `@borwood/b4-after` and `@borwood/b4-after-ledger` are deprecated and
   will not receive further versions. To move:
-  - Point your MCP client at the new package: `claude mcp add cb4 -- npx -y cb4 ./architecture --actor claude`
+  - Point your MCP client at the new package: `claude mcp add cb4 -- npx -y cb4-mcp ./architecture --actor claude`
     (or `codex mcp add ...`), and remove the old entry.
   - Environment variables are `CB4_REPO` and `CB4_ACTOR` (were `B4_AFTER_REPO`, `B4_AFTER_ACTOR`).
-  - Reinstall the skills, now `cb4-guide` and `cb4-adopt`: `npx -y cb4 skill` (add `--codex` for
+  - Reinstall the skills, now `cb4-guide` and `cb4-adopt`: `npx -y cb4-mcp skill` (add `--codex` for
     Codex), and delete the old `b4-after-*` skill folders.
   - Library users import from `cb4-ledger`; the API is unchanged apart from the entries below.
 - Nothing in a model repository changes. The `b4-*` tags and `b4_*` metadata that cb4 writes into
