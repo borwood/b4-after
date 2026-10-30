@@ -15,6 +15,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
   those whose subtree connects to the entity's subtree (medium detail with the connecting
   relationships) and the rest (id, kind, title). A relationship id works too: the relationship in
   full with its source as the focus. Every list is capped (`max_peers`, `max_relationships`).
+- One set of detail tiers across the reads. `minimal` is the row you already know (id, fqn, kind,
+  title, children count, pending). `medium` adds description, technology, tags and status. `full`
+  is what `element` returns. `overview`, `search` and `expand` take `detail=medium` to answer
+  "what are these" without one `element` call per row; the default stays minimal. `help queries`
+  defines the tiers once.
 - `changes` takes a `source` filter: the ref of an issue, PR, CI run or deployment. It matches
   change-set `sources[].ref` and evidence `source_ref`, so "which change sets relate to this
   link" is one call. Each row says what matched (`matched: [{via: source, role, ref}]` or
@@ -24,6 +29,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ### Changed
 
+- **Breaking**: on a container, `element` used to list its descendants' relationships under
+  `incoming`/`outgoing` with nothing to say so, so an edge from a child read as the container's
+  own. Those lists now hold the element's own edges only. Edges that cross its boundary through a
+  descendant are under `nestedIncoming`/`nestedOutgoing`, each with `via: {id, fqn}` of the
+  descendant, capped at 50 with `nestedTruncated`. Relationships internal to the subtree are in
+  neither; `expand` shows those.
 - **Breaking**: `element` no longer lists every change set id that ever touched the entity. That
   list grew with history times connectivity, so a hub element in a long-lived repository could
   carry hundreds of ids on the call agents make most. `changeSets` is now a summary: `total`,

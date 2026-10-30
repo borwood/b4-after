@@ -98,36 +98,38 @@ export function createServer(ctx: RepoContext): McpServer {
     inputSchema: { topic: z.enum(HELP_TOPICS).optional() },
   }, async ({ topic }) => ({ content: [{ type: 'text', text: help(topic) }] }))
 
+  const detailInput = z.enum(['minimal', 'medium']).optional()
+
   server.registerTool('overview', {
     description: 'Project summary: roots, counts, open change sets, head',
-    inputSchema: {},
-  }, async () => guarded(async () => {
+    inputSchema: { detail: detailInput },
+  }, async (a) => guarded(async () => {
     const s = await ctx.snapshot()
     if (!(await ctx.hasModel())) {
       return ok(s.head, { ...overview(s), initialized: false, next: 'no model repository here yet: bootstrap mode=init name=<project> creates one (help adopt), or mode=adopt if model/ already holds LikeC4 sources' })
     }
-    return ok(s.head, overview(s))
+    return ok(s.head, overview(s, { detail: a.detail }))
   }))
 
   server.registerTool('search', {
-    description: 'Find elements by id, fqn, title, kind, tag or metadata (ranked, limit<=50); metadata={key: value} filters',
-    inputSchema: { query: z.string(), kinds: z.array(z.string()).optional(), tags: z.array(z.string()).optional(), metadata: z.record(z.string(), z.string()).optional(), limit: z.number().int().optional() },
+    description: 'Find elements by id, fqn, title, kind, tag or metadata (ranked, limit<=50); detail=medium adds descriptions',
+    inputSchema: { query: z.string(), kinds: z.array(z.string()).optional(), tags: z.array(z.string()).optional(), metadata: z.record(z.string(), z.string()).optional(), limit: z.number().int().optional(), detail: detailInput },
   }, async (a) => guarded(async () => {
     const s = await ctx.snapshot()
     return ok(s.head, search(s, a))
   }))
 
   server.registerTool('expand', {
-    description: 'Descendants of an entity plus relationships touching them (depth<=5, max_nodes<=200)',
-    inputSchema: { entity: z.string(), depth: z.number().int().optional(), relationships: z.enum(['direct', 'none']).optional(), max_nodes: z.number().int().optional() },
+    description: 'Descendants of an entity plus relationships touching them (depth<=5); detail=medium adds descriptions',
+    inputSchema: { entity: z.string(), depth: z.number().int().optional(), relationships: z.enum(['direct', 'none']).optional(), max_nodes: z.number().int().optional(), detail: detailInput },
   }, async (a) => guarded(async () => {
     const s = await ctx.snapshot()
-    const r = expand(s, { entity: a.entity, depth: a.depth, relationships: a.relationships, maxNodes: a.max_nodes })
+    const r = expand(s, { entity: a.entity, depth: a.depth, relationships: a.relationships, maxNodes: a.max_nodes, detail: a.detail })
     return r ? ok(s.head, r) : fail('NOT_FOUND', `no element ${a.entity} at HEAD`, { hint: 'help ids; story still works for removed entities' })
   }))
 
   server.registerTool('element', {
-    description: 'One element in full: properties, relationships, views, change sets; qualify=true adds verification',
+    description: 'One element in full: properties, direct and nested relationships, views, change sets; qualify=true adds verification',
     inputSchema: { entity: z.string(), qualify: z.boolean().optional(), environment: z.string().optional() },
   }, async (a) => guarded(async () => {
     const s = await ctx.snapshot()

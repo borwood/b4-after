@@ -1,11 +1,11 @@
 // Bounded read queries for agents (PRD section 8: getArchitecture, searchElements, expand, getElement).
 // Every result is compact and capped; nothing here walks the whole graph by default.
 import type { LikeC4Model } from '@likec4/core/model'
-import type { ElementModel } from '@likec4/core/model'
+import type { ElementModel, RelationshipModel } from '@likec4/core/model'
 import { IdentityRegistry, STABLE_ID_KEY } from './identity.js'
 import type { Ledger } from './ledger.js'
 import type { ParsedModelData } from './model.js'
-import { flagsOfTags, isReservedMetadataKey, isReservedTag, type StatusFlag } from './reserved.js'
+import { META, flagsOfTags, isReservedMetadataKey, isReservedTag, type StatusFlag } from './reserved.js'
 
 export interface Snapshot {
   model: LikeC4Model
@@ -45,6 +45,58 @@ export function relationshipRow(s: Snapshot, r: { id: string; source: { id: stri
   return withPending({ id: rec?.stableId ?? `rel:${r.id}`, from: idOf(s, r.source.id), to: idOf(s, r.target.id), kind: r.kind ?? null, title: r.title ?? null }, r.tags)
 }
 
+/**
+ * Detail tiers shared by every read. minimal = ElementRow. medium = minimal plus description, technology,
+ * tags and status. full = ElementDetail. Reads that list many entities take a Detail option and default
+ * to minimal; reads about one entity return full.
+ */
+export type Detail = 'minimal' | 'medium'
+
+/** Medium detail: what an agent needs before relying on the entity. No relationships, children list or user metadata. */
+export interface ElementMedium extends ElementRow {
+  description: string | null
+  technology: string | null
+  tags: string[]
+  /** Status metadata only (b4_status, b4_change, b4_pending); absent when the entity has none. Full detail carries these inside metadata instead. */
+  status?: Record<string, string | string[]>
+}
+
+export function statusOf(el: ElementModel): Record<string, string | string[]> | undefined {
+  const md = el.getMetadata() as Record<string, string | string[]>
+  const keys = [META.status, META.change, META.pending].filter(k => k in md)
+  return keys.length ? Object.fromEntries(keys.map(k => [k, md[k]!])) : undefined
+}
+
+export function elementMedium(s: Snapshot, el: ElementModel): ElementMedium {
+  const status = statusOf(el)
+  return {
+    ...elementRow(s, el, true),
+    description: el.description?.text ?? null,
+    technology: el.technology ?? null,
+    tags: [...el.tags],
+    ...(status ? { status } : {}),
+  }
+}
+
+/** The row for a list entry at the requested detail. */
+export function elementAt(s: Snapshot, el: ElementModel, detail: Detail = 'minimal'): ElementRow | ElementMedium {
+  return detail === 'medium' ? elementMedium(s, el) : elementRow(s, el, true)
+}
+
+/** A relationship that reaches the element through a descendant: `via` is that descendant, so the edge can be read and followed. */
+export interface NestedRelationshipRow extends RelationshipRow { via: { id: string; fqn: string } }
+
+export interface RelationshipDetail extends RelationshipRow {
+  description: string | null
+  technology: string | null
+  tags: string[]
+  views: string[]
+}
+
+export function relationshipDetail(s: Snapshot, r: RelationshipModel): RelationshipDetail {
+  return { ...relationshipRow(s, r), description: r.description?.text ?? null, technology: r.technology ?? null, tags: [...r.tags], views: [...r.views()].map(v => v.id) }
+}
+
 /** Resolve a stable id, `fqn:` prefixed FQN, or bare FQN to an element. */
 export function resolveElement(s: Snapshot, entity: string): ElementModel | null {
   const key = entity.startsWith('fqn:') ? entity.slice(4) : entity
@@ -56,13 +108,13 @@ export function resolveElement(s: Snapshot, entity: string): ElementModel | null
 export interface Overview {
   head: string | null
   model: { elements: number; relationships: number; views: number; kinds: Record<string, number>; relationshipKinds: string[]; tags: string[] }
-  roots: ElementRow[]
+  roots: (ElementRow | ElementMedium)[]
   rootsTruncated: boolean
   ledger: { changeSets: number; byDisposition: Record<string, number>; promoted: number; open: string[]; openTruncated: boolean }
   identity: { withoutStableId: number }
 }
 
-export function overview(s: Snapshot, opts: { maxRoots?: number; maxOpen?: number } = {}): Overview {
+export function overview(s: Snapshot, opts: { maxRoots?: number; maxOpen?: number; detail?: Detail } = {}): Overview {
   const maxRoots = opts.maxRoots ?? 20
   const maxOpen = opts.maxOpen ?? 10
   const kinds: Record<string, number> = {}
@@ -84,7 +136,7 @@ export function overview(s: Snapshot, opts: { maxRoots?: number; maxOpen?: numbe
       elements, relationships: [...s.model.relationships()].length, views: [...s.model.views()].length,
       kinds, relationshipKinds: Object.keys(spec.relationships ?? {}), tags: Object.keys(spec.tags ?? {}).filter(t => !isReservedTag(t)),
     },
-    roots: roots.slice(0, maxRoots).map(el => elementRow(s, el, true)),
+    roots: roots.slice(0, maxRoots).map(el => elementAt(s, el, opts.detail)),
     rootsTruncated: roots.length > maxRoots,
     ledger: { changeSets: s.ledger.records.size, byDisposition, promoted, open: open.slice(0, maxOpen), openTruncated: open.length > maxOpen },
     identity: { withoutStableId: s.registry.problems.filter(p => p.code === 'MISSING_STABLE_ID').length },
@@ -98,8 +150,9 @@ export interface SearchOptions {
   /** Keep only entities whose metadata has every key with that value (a list value matches when it contains it). */
   metadata?: Record<string, string>
   limit?: number
+  detail?: Detail
 }
-export interface SearchResult { elements: ElementRow[]; relationships: RelationshipRow[]; truncated: boolean }
+export interface SearchResult { elements: (ElementRow | ElementMedium)[]; relationships: RelationshipRow[]; truncated: boolean }
 
 type Metadata = Record<string, string | string[]>
 /** User metadata as searchable text: each value, and key=value. Identity and status keys are left out. */
@@ -146,13 +199,13 @@ export function search(s: Snapshot, opts: SearchOptions): SearchResult {
       if (relationships.length >= limit) break
     }
   }
-  return { elements: scored.slice(0, limit).map(x => elementRow(s, x.el, true)), relationships, truncated: scored.length > limit }
+  return { elements: scored.slice(0, limit).map(x => elementAt(s, x.el, opts.detail)), relationships, truncated: scored.length > limit }
 }
 
-export interface ExpandOptions { entity: string; depth?: number; relationships?: 'direct' | 'none'; maxNodes?: number }
+export interface ExpandOptions { entity: string; depth?: number; relationships?: 'direct' | 'none'; maxNodes?: number; detail?: Detail }
 export interface ExpandResult {
-  entity: ElementRow & { parent: string | null }
-  descendants: (ElementRow & { depth: number; parent: string })[]
+  entity: (ElementRow | ElementMedium) & { parent: string | null }
+  descendants: ((ElementRow | ElementMedium) & { depth: number; parent: string })[]
   relationships: RelationshipRow[]
   truncated: boolean
 }
@@ -168,7 +221,7 @@ export function expand(s: Snapshot, opts: ExpandOptions): ExpandResult | null {
     if (d > depth) return
     for (const c of el.children()) {
       if (descendants.length >= maxNodes) { truncated = true; return }
-      descendants.push({ ...elementRow(s, c, true), depth: d, parent: idOf(s, el.id) })
+      descendants.push({ ...elementAt(s, c, opts.detail), depth: d, parent: idOf(s, el.id) })
       walk(c, d + 1)
     }
   }
@@ -181,20 +234,23 @@ export function expand(s: Snapshot, opts: ExpandOptions): ExpandResult | null {
     }
   }
   return {
-    entity: { ...elementRow(s, root, true), parent: root.parent ? idOf(s, root.parent.id) : null },
+    entity: { ...elementAt(s, root, opts.detail), parent: root.parent ? idOf(s, root.parent.id) : null },
     descendants, relationships, truncated,
   }
 }
 
-export interface ElementDetail extends Omit<ElementRow, 'children'> {
+/** Full detail: medium (status folded into metadata) plus parent, metadata, children, relationships, views and change sets. */
+export interface ElementDetail extends Omit<ElementMedium, 'children' | 'status'> {
   parent: string | null
-  description: string | null
-  technology: string | null
-  tags: string[]
   metadata: Record<string, string | string[]>
   children: ElementRow[]
+  /** Relationships whose endpoint is this element itself. */
   incoming: RelationshipRow[]
   outgoing: RelationshipRow[]
+  /** Relationships that cross this element's boundary through a descendant (never ones internal to the subtree). Capped. */
+  nestedIncoming: NestedRelationshipRow[]
+  nestedOutgoing: NestedRelationshipRow[]
+  nestedTruncated: boolean
   views: string[]
   /** Change sets touching the element or an attached relationship: counts, plus the ids of the open ones (proposed or accepted, not promoted). History is story's job. */
   changeSets: ChangeSetSummary
@@ -225,23 +281,29 @@ export function summarizeChangeSets(s: Snapshot, ids: Iterable<string>, maxOpen 
   return out
 }
 
+const MAX_NESTED = 50
+
 export function elementDetail(s: Snapshot, entity: string): ElementDetail | null {
   const el = resolveElement(s, entity)
   if (!el) return null
-  const row = elementRow(s, el, true)
+  const { status, ...medium } = elementMedium(s, el)
+  void status
   const sid = s.registry.elementByFqn(el.id)?.stableId
-  // Change sets touching the element itself or any relationship attached to it (same rule as storyOf).
+  // Change sets touching the element itself or any relationship attached to it or its subtree (same rule as storyOf).
   const attached = [...el.incoming(), ...el.outgoing()].map(r => s.registry.relationshipByRelationId(r.id)?.stableId).filter((x): x is string => !!x)
+  const via = (d: ElementModel) => ({ id: idOf(s, d.id), fqn: d.id })
+  const nestedIn = [...el.incoming('to-descendants')]
+  const nestedOut = [...el.outgoing('from-descendants')]
   return {
-    ...row,
+    ...medium,
     parent: el.parent ? idOf(s, el.parent.id) : null,
-    description: el.description?.text ?? null,
-    technology: el.technology ?? null,
-    tags: [...el.tags],
     metadata: el.getMetadata() as Record<string, string | string[]>,
     children: [...el.children()].map(c => elementRow(s, c, true)),
-    incoming: [...el.incoming()].map(r => relationshipRow(s, r)),
-    outgoing: [...el.outgoing()].map(r => relationshipRow(s, r)),
+    incoming: [...el.incoming('direct')].map(r => relationshipRow(s, r)),
+    outgoing: [...el.outgoing('direct')].map(r => relationshipRow(s, r)),
+    nestedIncoming: nestedIn.slice(0, MAX_NESTED).map(r => ({ ...relationshipRow(s, r), via: via(r.target) })),
+    nestedOutgoing: nestedOut.slice(0, MAX_NESTED).map(r => ({ ...relationshipRow(s, r), via: via(r.source) })),
+    nestedTruncated: nestedIn.length > MAX_NESTED || nestedOut.length > MAX_NESTED,
     views: [...el.views()].map(v => v.id),
     changeSets: summarizeChangeSets(s, s.ledger.changeIdsFor([...(sid ? [sid] : []), ...attached])),
   }

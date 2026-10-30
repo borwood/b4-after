@@ -99,6 +99,29 @@ describe('surface', () => {
     expect(d.json.changeSets).toEqual({ total: 2, promoted: 1, byDisposition: { accepted: 1, rejected: 1 }, open: [], openTruncated: false })
     expect((await call(client, 'element', { entity: 'ent-billing-api' })).json.changeSets.open).toEqual(['CHG-042'])
     expect(d.json.outgoing.map((r: any) => r.to).sort()).toEqual(['ent-ledger-db', 'ent-payment-gateway'])
+    expect(d.json).toMatchObject({ nestedIncoming: [], nestedOutgoing: [], nestedTruncated: false })
+
+    // A container's own edges are split from those its descendants carry, and via says which descendant.
+    const api = await call(client, 'element', { entity: 'ent-billing-api' })
+    expect(api.json.incoming.map((r: any) => r.id)).toEqual(['rel-invoice-ui-calls-billing-api'])
+    expect(api.json.outgoing).toEqual([])
+    expect(api.json.nestedOutgoing.map((r: any) => [r.id, r.via])).toEqual([
+      ['rel-charges-cards', { id: 'ent-charges', fqn: 'billing.billing_api.charges' }],
+      ['rel-charges-persist-ledger-db', { id: 'ent-charges', fqn: 'billing.billing_api.charges' }],
+    ])
+    const sys = await call(client, 'element', { entity: 'ent-billing' })
+    expect(sys.json.incoming).toEqual([])
+    expect(sys.json.nestedIncoming.map((r: any) => [r.id, r.via.id])).toEqual([['rel-customer-views-invoices', 'ent-invoice-ui']])
+    expect(sys.json.nestedOutgoing.map((r: any) => r.id)).toEqual(['rel-charges-cards']) // internal edges are in neither list
+
+    // detail=medium on the list reads: the same medium template everywhere, minimal by default.
+    const min = await call(client, 'search', { query: 'billing api' })
+    expect(Object.keys(min.json.elements[0]).sort()).toEqual(['children', 'fqn', 'id', 'kind', 'title'])
+    const med = await call(client, 'search', { query: 'billing api', detail: 'medium' })
+    expect(med.json.elements[0]).toMatchObject({ id: 'ent-billing-api', technology: 'Node.js', description: null, tags: [] })
+    expect(med.json.elements[0].incoming).toBeUndefined()
+    expect((await call(client, 'expand', { entity: 'ent-billing', detail: 'medium' })).json.descendants.find((x: any) => x.id === 'ent-ledger-db')).toMatchObject({ technology: 'PostgreSQL', depth: 1 })
+    expect((await call(client, 'overview', { detail: 'medium' })).json.roots[0]).toMatchObject({ id: 'ent-customer', description: 'Pays invoices' })
     expect(d.json.qualification).toMatchObject({ status: 'unrecorded' })
 
     const nf = await call(client, 'expand', { entity: 'ent-nope' })
@@ -133,7 +156,8 @@ describe('surface', () => {
       ['ent-billing', ['ent-invoice-ui', 'ent-ledger-db'], []],
       [null, ['ent-customer', 'ent-payment-gateway'], []],
     ])
-    expect(r.json.levels[0].container).toMatchObject({ id: 'ent-billing-api', children: 1, incoming: [{ id: 'rel-invoice-ui-calls-billing-api' }], changeSets: { open: ['CHG-042'] } })
+    expect(r.json.levels[0].container).toMatchObject({ id: 'ent-billing-api', children: 1, incoming: [{ id: 'rel-invoice-ui-calls-billing-api' }], outgoing: [], changeSets: { open: ['CHG-042'] } })
+    expect(r.json.levels[0].container.nestedOutgoing).toBeUndefined() // the levels carry nested edges, as connected peers
     expect(r.json.levels[1].connected[0]).toMatchObject({ id: 'ent-invoice-ui', relationships: [{ id: 'rel-invoice-ui-calls-billing-api' }] })
     expect(r.json.levels[2].connected.map((c: any) => c.relationships.map((x: any) => x.id))).toEqual([['rel-customer-views-invoices'], ['rel-charges-cards']])
 

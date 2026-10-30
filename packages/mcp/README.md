@@ -76,10 +76,10 @@ were installed with.
 | Tool | Purpose |
 |---|---|
 | help | documentation by topic (start, ids, schema, operations, evidence, status, workflow, plan, concurrency, queries, policy, errors, adopt) |
-| overview | roots, counts, open change sets, head; says so when the repository is not initialised yet |
-| search | ranked element lookup by id, fqn, title, kind, tag or metadata; filter by metadata key=value |
-| expand | descendants of an entity plus the relationships touching them |
-| element | one element in full; `qualify=true` adds derived verification |
+| overview | roots, counts, open change sets, head; says so when the repository is not initialised yet. `detail=medium` adds descriptions |
+| search | ranked element lookup by id, fqn, title, kind, tag or metadata; filter by metadata key=value. `detail=medium` adds descriptions |
+| expand | descendants of an entity plus the relationships touching them. `detail=medium` adds descriptions |
+| element | one element in full, its own relationships split from those its descendants carry; `qualify=true` adds derived verification |
 | locate | ground around an entity in one call: full detail, related entities, then each container up to the root with connected and other peers |
 | story | change sets involving an entity or subtree, oldest first, paged; as of a revision or date |
 | changes | list change sets by disposition, promotion, entity, or source ref (change-set sources and evidence) |
